@@ -32,3 +32,25 @@ sboms:
   - artifacts: archive
 release:
   draft: true
+brews:
+  - name: finalizer-doctor
+    repository:
+      owner: alexremn
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/alexremn/finalizer-doctor
+    description: Safely diagnose and clear finalizers on stuck-Terminating Kubernetes resources
+    license: Apache-2.0
+    commit_author:
+      name: goreleaser-bot
+      email: goreleaser@users.noreply.github.com
+    install: |
+      bin.install "kubectl-finalizer_doctor"
+      bin.install "kubectl-fid"
+    test: |
+      system "#{bin}/kubectl-finalizer_doctor", "version"
+    caveats: |
+      Installed as kubectl plugins (both binaries are placed on your PATH):
+        kubectl finalizer-doctor <target>
+        kubectl fid <target>

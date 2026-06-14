@@ -32,6 +32,15 @@ and evidence-based.
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install alexremn/tap/finalizer-doctor
+```
+
+This installs both `kubectl-finalizer_doctor` and `kubectl-fid` on your `PATH`, so
+`kubectl finalizer-doctor` and `kubectl fid` work immediately.
+
 ### Standalone binaries
 
 Download the archive for your platform from the
