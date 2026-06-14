@@ -26,11 +26,11 @@ touches the Kubernetes API.
 - Keep files small and focused; follow the existing package boundaries.
 - Run `make test lint` before opening a PR.
 
-## Design docs
+## Verdict & safety changes
 
-The architecture and the safety/verdict rules are specified under
-`docs/superpowers/specs/`. Changes to verdict or safety behavior should update the
-relevant spec in the same PR.
+The verdict engine (`internal/verdict`) and the safety/apply logic
+(`internal/apply`, `internal/plan`, `internal/webhook`) are the trust surface.
+Changes there must be covered by tests and clearly described in the PR.
 
 ## Reporting security issues
 

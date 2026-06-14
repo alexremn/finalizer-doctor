@@ -86,11 +86,22 @@ kubectl finalizer-doctor ns/my-namespace --apply --confirm=<digest>
 
 ## Safety model
 
-The full guardrail design — proof-bound confirmation digest, per-action TOCTOU
-re-verify, `metadata.finalizers` vs `/finalize` patch semantics, orphans-first
-ordering, joint namespace finalizer gate — is documented in
-[`docs/superpowers/specs/safety-model.md`](docs/superpowers/specs/safety-model.md)
-and [`docs/superpowers/specs/verdict-engine.md`](docs/superpowers/specs/verdict-engine.md).
+The guardrails between a verdict and a mutation:
+
+- **Dry-run by default** — nothing changes without `--apply`.
+- **Evidence-based verdict** — a finalizer is only `DEAD` ("safe to clear") on hard
+  proof the owner is gone; a live signal, an unreadable liveness source, or time
+  alone never yields `DEAD`.
+- **Proof-bound confirmation** — `--apply` (non-interactive) requires a `--confirm`
+  digest that the dry-run prints, binding the token to the exact target, finalizer
+  set, verdict, and `resourceVersion`.
+- **Per-action re-verify** — the verdict is re-checked immediately before every
+  irreversible action; a recovered controller aborts the run.
+- **Ordered remediation** — clean true orphans first, refuse if a `failurePolicy=Fail`
+  webhook with dead backing would reject the patch, then clear the finalizer last.
+- **Targeted patch** — removes only the dead finalizer; namespaces use the
+  `/finalize` subresource with a `resourceVersion` precondition; the namespace
+  `spec` and `metadata` finalizers are gated jointly.
 
 ## Contributing
 

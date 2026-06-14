@@ -11,6 +11,5 @@ Closes #
 - [ ] `make test` passes (`-race`)
 - [ ] `make lint` passes
 - [ ] New behavior is covered by tests
-- [ ] If verdict/safety behavior changed, the relevant spec under
-      `docs/superpowers/specs/` is updated in this PR
+- [ ] Verdict/safety behavior changes are described clearly and covered by tests
 - [ ] Commits follow Conventional Commits
