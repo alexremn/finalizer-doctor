@@ -24,7 +24,7 @@ type Condition struct {
 
 // StuckObject is one resource caught mid-deletion.
 type StuckObject struct {
-	Ref                 ResourceRef
+	Ref ResourceRef
 	// DeletionTimestamp is a plain *time.Time converted from metav1.Time at the
 	// discover/snapshot boundary; do not import metav1 into this package.
 	DeletionTimestamp   *time.Time

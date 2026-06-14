@@ -9,11 +9,11 @@ type builtinEntry struct {
 
 // builtinTable maps well-known finalizers (verdict-engine.md §5a).
 var builtinTable = map[string]builtinEntry{
-	"kubernetes":                                  {Owner: "namespace controller (kube-controller-manager)", Kind: "Builtin", RarelyDead: true},
-	"kubernetes.io/pv-protection":                 {Owner: "pv-protection-controller (KCM)", Kind: "Builtin", RarelyDead: true},
-	"kubernetes.io/pvc-protection":                {Owner: "pvc-protection-controller (KCM)", Kind: "Builtin", RarelyDead: true},
-	"foregroundDeletion":                          {Owner: "garbage collector (KCM)", Kind: "Builtin", RarelyDead: true},
-	"orphan":                                      {Owner: "garbage collector (KCM)", Kind: "Builtin", RarelyDead: true},
+	"kubernetes":                   {Owner: "namespace controller (kube-controller-manager)", Kind: "Builtin", RarelyDead: true},
+	"kubernetes.io/pv-protection":  {Owner: "pv-protection-controller (KCM)", Kind: "Builtin", RarelyDead: true},
+	"kubernetes.io/pvc-protection": {Owner: "pvc-protection-controller (KCM)", Kind: "Builtin", RarelyDead: true},
+	"foregroundDeletion":           {Owner: "garbage collector (KCM)", Kind: "Builtin", RarelyDead: true},
+	"orphan":                       {Owner: "garbage collector (KCM)", Kind: "Builtin", RarelyDead: true},
 	"service.kubernetes.io/load-balancer-cleanup": {Owner: "service controller / cloud-provider", Kind: "Builtin", RarelyDead: true},
 }
 
