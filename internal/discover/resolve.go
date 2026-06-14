@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/alexremn/finalizer-doctor/internal/cluster"
@@ -89,4 +90,53 @@ func canList(verbs []string) bool {
 		}
 	}
 	return false
+}
+
+// NamespaceObjects lists every namespaced, listable resource in the namespace and
+// returns minimal StuckObjects (ref + kind + ownerRefs) as orphan candidates.
+// A failed list on any group is skipped, never fatal.
+func NamespaceObjects(ctx context.Context, c cluster.ClusterClient, namespace string) ([]model.StuckObject, error) {
+	lists, err := c.ServerPreferredResources(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("discovery failed: %w", err)
+	}
+	var out []model.StuckObject
+	for _, rl := range lists {
+		gv, err := schema.ParseGroupVersion(rl.GroupVersion)
+		if err != nil {
+			continue
+		}
+		for _, r := range rl.APIResources {
+			if !r.Namespaced || !canList(r.Verbs) || strings.Contains(r.Name, "/") {
+				continue
+			}
+			gvr := gv.WithResource(r.Name)
+			objs, err := c.List(ctx, gvr, namespace)
+			if err != nil {
+				continue
+			}
+			for i := range objs.Items {
+				o := objs.Items[i]
+				out = append(out, model.StuckObject{
+					Ref:        model.ResourceRef{GVR: gvr, Namespace: o.GetNamespace(), Name: o.GetName()},
+					Kind:       o.GetKind(),
+					APIVersion: o.GetAPIVersion(),
+					OwnerRefs:  ownerRefsOf(&o),
+				})
+			}
+		}
+	}
+	return out, nil
+}
+
+func ownerRefsOf(o *unstructured.Unstructured) []model.OwnerRef {
+	refs := o.GetOwnerReferences()
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]model.OwnerRef, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, model.OwnerRef{APIVersion: r.APIVersion, Kind: r.Kind, Name: r.Name})
+	}
+	return out
 }
