@@ -16,6 +16,8 @@ type ResourceRef struct {
 }
 
 // String renders a stable, human-readable reference.
+// A zero-value or partial ref (empty Name or Resource) is a deliberate sentinel
+// meaning "no known owner" and renders with empty segments; no behavior change required.
 func (r ResourceRef) String() string {
 	res := r.GVR.Resource
 	if r.GVR.Group != "" {
