@@ -14,11 +14,13 @@ import (
 	"github.com/alexremn/finalizer-doctor/internal/discover"
 	"github.com/alexremn/finalizer-doctor/internal/mapping"
 	"github.com/alexremn/finalizer-doctor/internal/model"
+	"github.com/alexremn/finalizer-doctor/internal/orphan"
 	"github.com/alexremn/finalizer-doctor/internal/plan"
 	"github.com/alexremn/finalizer-doctor/internal/probe"
 	"github.com/alexremn/finalizer-doctor/internal/render"
 	"github.com/alexremn/finalizer-doctor/internal/snapshot"
 	"github.com/alexremn/finalizer-doctor/internal/verdict"
+	"github.com/alexremn/finalizer-doctor/internal/webhook"
 )
 
 // InvalidInvocation marks a usage error → exit code 1 (design §11).
@@ -65,15 +67,15 @@ func Run(ctx context.Context, c cluster.ClusterClient, o Options) (string, int, 
 		return "no stuck resources found\n", 0, nil
 	}
 
-	results, err := diagnose(ctx, c, refs, now, strategyFor(o))
+	snap, results, err := diagnose(ctx, c, refs, now, strategyFor(o))
 	if err != nil {
 		return "", 1, err
 	}
 
 	if !o.Apply {
-		return renderDryRun(o, results), 2, nil
+		return renderDryRun(o, snap, results), 2, nil
 	}
-	return runApply(ctx, c, o, results, now)
+	return runApply(ctx, c, o, snap, results, now)
 }
 
 func strategyFor(o Options) verdict.Verdicter {
@@ -84,10 +86,10 @@ func strategyFor(o Options) verdict.Verdicter {
 }
 
 // diagnose builds a snapshot for the given refs and verdicts every finalizer.
-func diagnose(ctx context.Context, c cluster.ClusterClient, refs []model.ResourceRef, now time.Time, strat verdict.Verdicter) ([]targetResult, error) {
+func diagnose(ctx context.Context, c cluster.ClusterClient, refs []model.ResourceRef, now time.Time, strat verdict.Verdicter) (model.Snapshot, []targetResult, error) {
 	snap, err := snapshot.Build(ctx, c, refs, now)
 	if err != nil {
-		return nil, fmt.Errorf("snapshot: %w", err)
+		return model.Snapshot{}, nil, fmt.Errorf("snapshot: %w", err)
 	}
 	var out []targetResult
 	for _, obj := range snap.Targets {
@@ -106,7 +108,28 @@ func diagnose(ctx context.Context, c cluster.ClusterClient, refs []model.Resourc
 		}
 		out = append(out, tr)
 	}
-	return out, nil
+	return snap, out, nil
+}
+
+// orphanScanNamespace is the namespace to scan for orphans: a namespace target's
+// own name, otherwise the target's namespace.
+func orphanScanNamespace(obj model.StuckObject) string {
+	if obj.Ref.GVR.Resource == "namespaces" {
+		return obj.Ref.Name
+	}
+	return obj.Ref.Namespace
+}
+
+func detectOrphans(ctx context.Context, c cluster.ClusterClient, obj model.StuckObject) []model.ResourceRef {
+	ns := orphanScanNamespace(obj)
+	if ns == "" {
+		return nil
+	}
+	candidates, err := discover.NamespaceObjects(ctx, c, ns)
+	if err != nil {
+		return nil // best-effort: a failed candidate scan never blocks the clear
+	}
+	return orphan.Detect(obj, candidates)
 }
 
 func allVerdicts(results []targetResult) []model.Verdict {
@@ -140,25 +163,34 @@ func renderOut(o Options, verdicts []model.Verdict, p model.Plan) string {
 	return render.Human(verdicts, p)
 }
 
-func renderDryRun(o Options, results []targetResult) string {
+func renderDryRun(o Options, snap model.Snapshot, results []targetResult) string {
 	out := renderOut(o, allVerdicts(results), model.Plan{})
 	if o.Output == "json" {
 		return out
 	}
 	for _, r := range results {
-		if combinedState(r.verdicts) == model.StateDead {
-			d := apply.Digest(r.obj.Ref, r.verdicts, r.obj.ResourceVersion)
-			out += fmt.Sprintf("to apply: kubectl finalizer-doctor %s --apply --confirm=%s\n", r.obj.Ref.String(), d)
+		if combinedState(r.verdicts) != model.StateDead {
+			continue
 		}
+		if blocked, note := webhook.Blocks(snap, r.obj.Ref); blocked {
+			out += "blocked: " + note + " — remove/fix the webhook, then re-run\n"
+			continue
+		}
+		d := apply.Digest(r.obj.Ref, r.verdicts, r.obj.ResourceVersion)
+		out += fmt.Sprintf("to apply: kubectl finalizer-doctor %s --apply --confirm=%s\n", r.obj.Ref.String(), d)
 	}
 	return out
 }
 
-func runApply(ctx context.Context, c cluster.ClusterClient, o Options, results []targetResult, now time.Time) (string, int, error) {
+func runApply(ctx context.Context, c cluster.ClusterClient, o Options, snap model.Snapshot, results []targetResult, now time.Time) (string, int, error) {
 	var out strings.Builder
 	for _, r := range results {
 		if combinedState(r.verdicts) != model.StateDead {
 			fmt.Fprintf(&out, "refused: %s is not all-DEAD; investigate (dry-run for evidence)\n", r.obj.Ref)
+			return out.String(), 3, nil
+		}
+		if blocked, note := webhook.Blocks(snap, r.obj.Ref); blocked {
+			fmt.Fprintf(&out, "refused: %s\n", note)
 			return out.String(), 3, nil
 		}
 		gate := apply.Gate{Interactive: o.Interactive, Confirm: o.Confirm}
@@ -169,23 +201,33 @@ func runApply(ctx context.Context, c cluster.ClusterClient, o Options, results [
 			fmt.Fprintf(&out, "refused: %v\n", err)
 			return out.String(), 3, nil
 		}
-		// v1.0: orphan-cleanup and webhook-blocker auto-handling are best-effort
-		// and not yet wired; the plan clears the proven-dead finalizers only.
-		p := plan.Build(r.obj, r.verdicts, nil, false)
-		reverify := func(ref model.ResourceRef) (model.State, string, error) {
-			rr, err := diagnose(ctx, c, []model.ResourceRef{ref}, now, strategyFor(o))
+		orphans := detectOrphans(ctx, c, r.obj)
+		p := plan.Build(r.obj, r.verdicts, orphans, false)
+		target := r.obj.Ref
+		// Re-verify gates on the PARENT target's DEAD state (an orphan is not a
+		// finalizer-bearing object), but pins the action target's OWN
+		// resourceVersion so each mutation has a correct precondition.
+		reverify := func(actionRef model.ResourceRef) (model.State, string, error) {
+			_, rr, err := diagnose(ctx, c, []model.ResourceRef{target}, now, strategyFor(o))
 			if err != nil || len(rr) == 0 {
 				return model.StateUnknown, "", err
 			}
-			return combinedState(rr[0].verdicts), rr[0].obj.ResourceVersion, nil
+			if st := combinedState(rr[0].verdicts); st != model.StateDead {
+				return st, "", nil
+			}
+			cur, err := c.Get(ctx, actionRef.GVR, actionRef.Namespace, actionRef.Name)
+			if err != nil {
+				return model.StateUnknown, "", err
+			}
+			return model.StateDead, cur.GetResourceVersion(), nil
 		}
 		res, err := apply.Execute(ctx, c, p, reverify)
+		for _, a := range res.Audit {
+			fmt.Fprintf(&out, "applied: %s\n", a)
+		}
 		if err != nil {
 			fmt.Fprintf(&out, "aborted after %d action(s): %v\n", res.Completed, err)
 			return out.String(), 3, nil
-		}
-		for _, a := range res.Audit {
-			fmt.Fprintf(&out, "applied: %s\n", a)
 		}
 	}
 	return out.String(), 0, nil
