@@ -92,7 +92,14 @@ func diagnose(ctx context.Context, c cluster.ClusterClient, refs []model.Resourc
 	var out []targetResult
 	for _, obj := range snap.Targets {
 		tr := targetResult{obj: obj}
+		isNamespace := obj.Ref.GVR.Resource == "namespaces"
 		for _, fin := range obj.AllFinalizers() {
+			if isNamespace && fin == verdict.NSKubernetesFinalizer {
+				// The namespace `kubernetes` spec finalizer is attributed to a
+				// failing dependency, not the (never-dead) namespace controller.
+				tr.verdicts = append(tr.verdicts, verdict.NamespaceKubernetes(obj, snap))
+				continue
+			}
 			owner := mapping.Map(fin, snap)
 			ev := probe.For(owner, snap)
 			tr.verdicts = append(tr.verdicts, strat.Verdict(owner, ev))
