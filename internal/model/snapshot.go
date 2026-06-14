@@ -22,17 +22,27 @@ type Condition struct {
 	Message string
 }
 
-// StuckObject is one resource caught mid-deletion.
+// OwnerRef is an ownerReference, identified by APIVersion+Kind+Name (not GVR,
+// since ownerReferences carry Kind, not a resource name).
+type OwnerRef struct {
+	APIVersion string
+	Kind       string
+	Name       string
+}
+
+// StuckObject is one resource caught mid-deletion (or a candidate orphan).
 type StuckObject struct {
-	Ref ResourceRef
+	Ref  ResourceRef
+	Kind string
 	// DeletionTimestamp is a plain *time.Time converted from metav1.Time at the
 	// discover/snapshot boundary; do not import metav1 into this package.
 	DeletionTimestamp   *time.Time
 	MetadataFinalizers  []string // JSON path metadata.finalizers
 	SpecFinalizers      []string // JSON path spec.finalizers (namespaces)
-	OwnerRefs           []ResourceRef
+	OwnerRefs           []OwnerRef
 	NamespaceConditions []Condition // populated for namespace targets
 	ResourceVersion     string
+	APIVersion          string
 }
 
 // AllFinalizers returns metadata + spec finalizers combined.

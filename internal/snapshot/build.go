@@ -94,8 +94,11 @@ func readSourceSilent(ctx context.Context, fn func(context.Context) ([]unstructu
 func toStuckObject(ref model.ResourceRef, o *unstructured.Unstructured) model.StuckObject {
 	so := model.StuckObject{
 		Ref:                ref,
+		Kind:               o.GetKind(),
+		APIVersion:         o.GetAPIVersion(),
 		MetadataFinalizers: o.GetFinalizers(),
 		SpecFinalizers:     extractStringSlice(o.Object, "spec", "finalizers"),
+		OwnerRefs:          ownerRefsOf(o),
 		ResourceVersion:    o.GetResourceVersion(),
 	}
 	if dt := o.GetDeletionTimestamp(); dt != nil {
@@ -106,4 +109,16 @@ func toStuckObject(ref model.ResourceRef, o *unstructured.Unstructured) model.St
 		so.NamespaceConditions = extractConditions(o)
 	}
 	return so
+}
+
+func ownerRefsOf(o *unstructured.Unstructured) []model.OwnerRef {
+	refs := o.GetOwnerReferences()
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]model.OwnerRef, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, model.OwnerRef{APIVersion: r.APIVersion, Kind: r.Kind, Name: r.Name})
+	}
+	return out
 }
