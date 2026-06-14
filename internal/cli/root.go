@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/tools/clientcmd"
@@ -28,6 +29,7 @@ func Execute() int {
 func newRootCmd(code *int) *cobra.Command {
 	o := Options{}
 	var kubeconfig, kcontext string
+	var timeout time.Duration
 
 	cmd := &cobra.Command{
 		Use:           "finalizer-doctor <target>",
@@ -43,7 +45,7 @@ func newRootCmd(code *int) *cobra.Command {
 				}
 				o.Target = args[0]
 			}
-			client, err := buildClient(kubeconfig, kcontext)
+			client, err := buildClient(kubeconfig, kcontext, timeout)
 			if err != nil {
 				*code = 1
 				return err
@@ -79,12 +81,14 @@ func newRootCmd(code *int) *cobra.Command {
 	f.StringVarP(&o.Namespace, "namespace", "n", "", "namespace for namespaced targets")
 	f.StringVar(&kubeconfig, "kubeconfig", "", "path to the kubeconfig file")
 	f.StringVar(&kcontext, "context", "", "kube context to use")
+	f.DurationVar(&timeout, "timeout", 30*time.Second, "per-API-call timeout")
+	f.StringVar(&o.AuditFile, "audit-file", "", "also append the audit record to this file")
 
 	cmd.AddCommand(newVersionCmd())
 	return cmd
 }
 
-func buildClient(kubeconfig, kcontext string) (cluster.ClusterClient, error) {
+func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.ClusterClient, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
 		rules.ExplicitPath = kubeconfig
@@ -96,6 +100,9 @@ func buildClient(kubeconfig, kcontext string) (cluster.ClusterClient, error) {
 	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	if err != nil {
 		return nil, fmt.Errorf("kube config: %w", err)
+	}
+	if timeout > 0 {
+		cfg.Timeout = timeout // per-request timeout at the HTTP client level
 	}
 	return cluster.NewFromConfig(cfg)
 }

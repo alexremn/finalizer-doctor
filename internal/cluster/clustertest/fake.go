@@ -135,6 +135,9 @@ func (f *Fake) Can(_ context.Context, a authv1.ResourceAttributes) (bool, error)
 	if e := f.err("Can"); e != nil {
 		return false, e
 	}
+	if f.Allowed == nil {
+		return true, nil // permissive default: set Allowed (non-nil) to test denials
+	}
 	return f.Allowed[AllowKey(a.Verb, a.Resource, a.Subresource)], nil
 }
 func (f *Fake) PatchFinalizers(_ context.Context, gvr schema.GroupVersionResource, ns, name string, _ []string, rv string) error {

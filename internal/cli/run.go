@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -28,6 +30,62 @@ type InvalidInvocation struct{ Msg string }
 
 func (e *InvalidInvocation) Error() string { return e.Msg }
 
+// preflight checks the RBAC verbs the run needs via SelfSubjectAccessReview and
+// returns a clear error on the first denial. Reads degrade gracefully elsewhere,
+// so it checks `get` on the target always and the mutating verb when --apply.
+func preflight(ctx context.Context, c cluster.ClusterClient, ref model.ResourceRef, apply bool) error {
+	get := authv1.ResourceAttributes{Group: ref.GVR.Group, Resource: ref.GVR.Resource, Namespace: ref.Namespace, Name: ref.Name, Verb: "get"}
+	if err := mustAllow(ctx, c, get, "get", resourceDesc(ref)); err != nil {
+		return err
+	}
+	if !apply {
+		return nil
+	}
+	if ref.GVR.Resource == "namespaces" {
+		fin := authv1.ResourceAttributes{Resource: "namespaces", Subresource: "finalize", Verb: "update", Name: ref.Name}
+		return mustAllow(ctx, c, fin, "update", "namespaces/finalize")
+	}
+	patch := authv1.ResourceAttributes{Group: ref.GVR.Group, Resource: ref.GVR.Resource, Namespace: ref.Namespace, Name: ref.Name, Verb: "patch"}
+	return mustAllow(ctx, c, patch, "patch", resourceDesc(ref))
+}
+
+func mustAllow(ctx context.Context, c cluster.ClusterClient, attrs authv1.ResourceAttributes, verb, desc string) error {
+	ok, err := c.Can(ctx, attrs)
+	if err != nil {
+		return fmt.Errorf("RBAC pre-flight failed: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("permission denied: you need %q on %s", verb, desc)
+	}
+	return nil
+}
+
+func resourceDesc(ref model.ResourceRef) string {
+	if ref.GVR.Group != "" {
+		return ref.GVR.Resource + "." + ref.GVR.Group
+	}
+	return ref.GVR.Resource
+}
+
+// appendAudit appends one tab-separated line per audit record to path.
+func appendAudit(path string, ref model.ResourceRef, records []string) error {
+	if len(records) == 0 {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	ts := time.Now().UTC().Format(time.RFC3339)
+	for _, r := range records {
+		if _, err := fmt.Fprintf(f, "%s\t%s\t%s\n", ts, ref.String(), r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Options holds parsed CLI flags.
 type Options struct {
 	Target      string
@@ -39,6 +97,7 @@ type Options struct {
 	TypedName   string // typed-name prompt input; root.go captures it
 	Verdict     string // "strict" | "score"
 	Output      string // "human" | "json"
+	AuditFile   string // optional path to append audit records to
 	Now         time.Time
 }
 
@@ -65,6 +124,14 @@ func Run(ctx context.Context, c cluster.ClusterClient, o Options) (string, int, 
 	}
 	if len(refs) == 0 {
 		return "no stuck resources found\n", 0, nil
+	}
+
+	// RBAC pre-flight for a single target: fail fast with a clear message rather
+	// than a confusing mid-run 403. (--all reads degrade gracefully per source.)
+	if !o.All {
+		if err := preflight(ctx, c, refs[0], o.Apply); err != nil {
+			return "", 1, err
+		}
 	}
 
 	snap, results, err := diagnose(ctx, c, refs, now, strategyFor(o))
@@ -224,6 +291,11 @@ func runApply(ctx context.Context, c cluster.ClusterClient, o Options, snap mode
 		res, err := apply.Execute(ctx, c, p, reverify)
 		for _, a := range res.Audit {
 			fmt.Fprintf(&out, "applied: %s\n", a)
+		}
+		if o.AuditFile != "" {
+			if werr := appendAudit(o.AuditFile, r.obj.Ref, res.Audit); werr != nil {
+				fmt.Fprintf(&out, "warning: could not write audit file %q: %v\n", o.AuditFile, werr)
+			}
 		}
 		if err != nil {
 			fmt.Fprintf(&out, "aborted after %d action(s): %v\n", res.Completed, err)
