@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"os"
+
+	"github.com/alexremn/finalizer-doctor/internal/cli"
+)
 
 func main() {
-	fmt.Println("finalizer-doctor")
+	os.Exit(cli.Execute())
 }
