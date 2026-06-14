@@ -13,6 +13,7 @@ const (
 type OwnerCandidate struct {
 	Finalizer   string
 	Kind        string      // "APIService" | "CRD" | "Workload" | "Webhook" | "Builtin" | "Unknown"
+	Group       string      // concrete API group the mapping resolved (used by the probe); "" if none
 	Ref         ResourceRef // the owner object, when identifiable
 	MatchReason string      // how the mapping matched, for operator sanity-check
 	Rank        int         // higher = stronger match (exact group > suffix > name)

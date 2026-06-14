@@ -28,8 +28,16 @@ func TestMapDomainToCRD(t *testing.T) {
 	snap := model.Snapshot{RawCRDs: []unstructured.Unstructured{crd("example.com")}}
 	c := Map("widgets.example.com/cleanup", snap)
 	assert.Equal(t, "CRD", c.Kind)
+	assert.Equal(t, "example.com", c.Group)
 	assert.Contains(t, c.MatchReason, "example.com")
 	assert.Greater(t, c.Rank, 0)
+}
+
+func TestMapBareGroupToCRD(t *testing.T) {
+	snap := model.Snapshot{RawCRDs: []unstructured.Unstructured{crd("example.com")}}
+	c := Map("example.com/finalizer", snap)
+	assert.Equal(t, "CRD", c.Kind)
+	assert.Equal(t, "example.com", c.Group)
 }
 
 func TestMapUnknown(t *testing.T) {
@@ -39,7 +47,7 @@ func TestMapUnknown(t *testing.T) {
 }
 
 func TestDomainOf(t *testing.T) {
-	assert.Equal(t, "example.com", DomainOf("widgets.example.com/cleanup"))
+	assert.Equal(t, "widgets.example.com", DomainOf("widgets.example.com/cleanup"))
 	assert.Equal(t, "example.com", DomainOf("example.com/finalizer"))
 	assert.Equal(t, "kubernetes", DomainOf("kubernetes"))
 }
