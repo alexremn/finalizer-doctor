@@ -2,3 +2,6 @@
 /dist/
 coverage.out
 *.test
+/finalizer-doctor
+/kubectl-finalizer_doctor
+/kubectl-fid
