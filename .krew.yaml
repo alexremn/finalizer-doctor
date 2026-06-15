@@ -14,33 +14,33 @@ spec:
     This is a last resort. Clearing a finalizer is irreversible and can orphan
     infrastructure. Run without --apply first to see the evidence and verdict.
   platforms:
-    - selector:
-        matchLabels:
-          os: linux
-          arch: amd64
-      {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_linux_amd64.tar.gz" .TagName }}
-      bin: kubectl-finalizer_doctor
-    - selector:
-        matchLabels:
-          os: linux
-          arch: arm64
-      {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_linux_arm64.tar.gz" .TagName }}
-      bin: kubectl-finalizer_doctor
-    - selector:
-        matchLabels:
-          os: darwin
-          arch: amd64
-      {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_darwin_amd64.tar.gz" .TagName }}
-      bin: kubectl-finalizer_doctor
-    - selector:
-        matchLabels:
-          os: darwin
-          arch: arm64
-      {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_darwin_arm64.tar.gz" .TagName }}
-      bin: kubectl-finalizer_doctor
-    - selector:
-        matchLabels:
-          os: windows
-          arch: amd64
-      {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_windows_amd64.tar.gz" .TagName }}
-      bin: kubectl-finalizer_doctor.exe
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_linux_amd64.tar.gz" .TagName }}
+    bin: kubectl-finalizer_doctor
+  - selector:
+      matchLabels:
+        os: linux
+        arch: arm64
+    {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_linux_arm64.tar.gz" .TagName }}
+    bin: kubectl-finalizer_doctor
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_darwin_amd64.tar.gz" .TagName }}
+    bin: kubectl-finalizer_doctor
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: arm64
+    {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_darwin_arm64.tar.gz" .TagName }}
+    bin: kubectl-finalizer_doctor
+  - selector:
+      matchLabels:
+        os: windows
+        arch: amd64
+    {{addURIAndSha "https://github.com/alexremn/finalizer-doctor/releases/download/{{ .TagName }}/finalizer-doctor_windows_amd64.tar.gz" .TagName }}
+    bin: kubectl-finalizer_doctor.exe
