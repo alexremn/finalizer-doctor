@@ -9,7 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
-        with: { go-version: "1.23" }
+        with: { go-version: "1.26" }
       - run: go test -race -coverprofile=coverage.out ./...
       - run: go tool cover -func=coverage.out | tail -n 1
   lint:
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
-        with: { go-version: "1.23" }
+        with: { go-version: "1.26" }
       - uses: golangci/golangci-lint-action@v9
         with: { version: latest }
   integration:
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
-        with: { go-version: "1.23" }
+        with: { go-version: "1.26" }
       - run: |
           export KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path 1.31.x)"
           go test -tags integration ./internal/cluster/...
