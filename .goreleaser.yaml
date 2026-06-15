@@ -31,42 +31,36 @@ checksum:
 sboms:
   - artifacts: archive
 changelog:
-  use: github
-  sort: asc
-  groups:
-    - title: Features
-      regexp: '^.*?feat(\(.+\))??!?:.+$'
-      order: 0
-    - title: Bug fixes
-      regexp: '^.*?fix(\(.+\))??!?:.+$'
-      order: 1
-    - title: Performance
-      regexp: '^.*?perf(\(.+\))??!?:.+$'
-      order: 2
-    - title: Refactors
-      regexp: '^.*?refactor(\(.+\))??!?:.+$'
-      order: 3
-    - title: Documentation
-      regexp: '^.*?docs(\(.+\))??!?:.+$'
-      order: 4
-    - title: Other changes
-      order: 999
-  filters:
-    exclude:
-      - '^test:'
-      - '^chore:'
-      - '^ci:'
-      - '^style:'
-      - '^Merge '
+  # GitHub-rendered notes (no raw commit SHAs); categories come from
+  # .github/release.yml. The curated header below is the real release note.
+  use: github-native
 release:
   draft: true
   header: |
-    ## finalizer-doctor {{ .Tag }}
+    A safe, evidence-based doctor for Kubernetes resources stuck in `Terminating`.
+    It pinpoints the finalizer and the dead controller / APIService blocking
+    deletion, cleans truly-orphaned resources first, and clears finalizers only as
+    a gated last resort — **dry-run by default**.
 
-    A safe stuck-`Terminating` doctor for Kubernetes. Install with Homebrew
-    (`brew install alexremn/tap/finalizer-doctor`), krew, or the binaries below.
+    ### Highlights
+    - 🩺 **Diagnose any finalizer-blocked resource** — namespaces, CRs, PVs, arbitrary CRDs.
+    - ⚖️ **Evidence-based verdict** (`strict` default, `score` opt-in) — clears only on hard proof the owner is dead; a live or unreadable signal vetoes it, and time alone never does.
+    - 🧹 **Safe ordering** — clean true orphans first, refuse on a dead-backed `failurePolicy=Fail` webhook, clear the finalizer last.
+    - 🔒 **Proof-bound apply** — `--confirm` digest + per-action re-verify + `resourceVersion` preconditions + RBAC pre-flight.
+    - 📦 **Homebrew, krew, or static binaries** — `kubectl finalizer-doctor` (alias `kubectl fid`).
+
+    ### Install
+    ```sh
+    brew install alexremn/tap/finalizer-doctor
+    # or download a binary from the assets below
+    ```
+
+    ⚠️ Clearing a finalizer is irreversible. This tool exists to make that decision
+    *safely* — read the [safety model](https://github.com/alexremn/finalizer-doctor#safety-model) first.
+
+    ---
   footer: |
-    {{ if .PreviousTag }}**Full changelog**: https://github.com/alexremn/finalizer-doctor/compare/{{ .PreviousTag }}...{{ .Tag }}{{ end }}
+    {{ if .PreviousTag }}**Full changelog**: https://github.com/alexremn/finalizer-doctor/compare/{{ .PreviousTag }}...{{ .Tag }}{{ else }}**Commits**: https://github.com/alexremn/finalizer-doctor/commits/{{ .Tag }}{{ end }}
 brews:
   - name: finalizer-doctor
     repository:
