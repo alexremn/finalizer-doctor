@@ -59,8 +59,7 @@ release:
     *safely* — read the [safety model](https://github.com/alexremn/finalizer-doctor#safety-model) first.
 
     ---
-  footer: |
-    {{ if .PreviousTag }}**Full changelog**: https://github.com/alexremn/finalizer-doctor/compare/{{ .PreviousTag }}...{{ .Tag }}{{ else }}**Commits**: https://github.com/alexremn/finalizer-doctor/commits/{{ .Tag }}{{ end }}
+  # No footer: github-native already appends a "Full Changelog" link.
 brews:
   - name: finalizer-doctor
     repository:
