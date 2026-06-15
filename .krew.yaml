@@ -5,7 +5,7 @@ metadata:
 spec:
   version: "{{ .TagName }}"
   homepage: https://github.com/alexremn/finalizer-doctor
-  shortDescription: Safely diagnose and clear finalizers on stuck-Terminating resources
+  shortDescription: Safely diagnose & clear stuck finalizers
   description: |
     Pinpoints the finalizer and the dead controller / APIService blocking
     deletion, cleans truly-orphaned resources first, and clears finalizers only
