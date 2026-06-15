@@ -32,7 +32,7 @@ func newRootCmd(code *int) *cobra.Command {
 	var timeout time.Duration
 
 	cmd := &cobra.Command{
-		Use:           "finalizer-doctor <target>",
+		Use:           "kubectl finalizer-doctor <target>",
 		Short:         "Safely diagnose and clear finalizers on stuck-Terminating resources",
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
