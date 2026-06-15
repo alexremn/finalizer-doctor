@@ -1,0 +1,14 @@
+name: krew
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  krew:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Reads .krew.yaml, fills version + per-archive sha256 from the release,
+      # and opens a PR to kubernetes-sigs/krew-index (first submission + updates).
+      - uses: rajatjindal/krew-release-bot@v0.0.47

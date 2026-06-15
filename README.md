@@ -1,5 +1,10 @@
 # finalizer-doctor
 
+[![release](https://img.shields.io/github/v/release/alexremn/finalizer-doctor?sort=semver)](https://github.com/alexremn/finalizer-doctor/releases)
+[![CI](https://github.com/alexremn/finalizer-doctor/actions/workflows/ci.yml/badge.svg)](https://github.com/alexremn/finalizer-doctor/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/alexremn/finalizer-doctor)](https://goreportcard.com/report/github.com/alexremn/finalizer-doctor)
+[![License](https://img.shields.io/github/license/alexremn/finalizer-doctor)](LICENSE)
+
 A safe stuck-`Terminating` doctor for Kubernetes. It pinpoints the exact finalizer
 and the dead controller / APIService blocking deletion, cleans truly-orphaned
 resources first, and clears finalizers only as a gated last resort.
