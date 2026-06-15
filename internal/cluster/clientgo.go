@@ -37,8 +37,8 @@ type clientGo struct {
 	cs   kubernetes.Interface
 }
 
-// NewFromConfig builds a ClusterClient from a rest.Config.
-func NewFromConfig(cfg *rest.Config) (ClusterClient, error) {
+// NewFromConfig builds a Client from a rest.Config.
+func NewFromConfig(cfg *rest.Config) (Client, error) {
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("dynamic client: %w", err)

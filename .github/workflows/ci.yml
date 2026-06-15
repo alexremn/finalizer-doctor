@@ -1,6 +1,7 @@
 name: ci
 on:
   pull_request: {}
+  workflow_call: {} # reused by the release workflow as a gate
 permissions:
   contents: read
 jobs:

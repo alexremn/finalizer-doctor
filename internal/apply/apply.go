@@ -25,7 +25,7 @@ type Result struct {
 // Execute runs the plan's actions in order, re-verifying DEAD immediately before
 // each irreversible action and pinning resourceVersion on the mutation
 // (safety-model.md §4, §6, §11). Stops on first error.
-func Execute(ctx context.Context, c cluster.ClusterClient, plan model.Plan, reverify ReverifyFunc) (Result, error) {
+func Execute(ctx context.Context, c cluster.Client, plan model.Plan, reverify ReverifyFunc) (Result, error) {
 	var res Result
 	for _, a := range plan.Actions {
 		state, rv, err := reverify(a.Target)
@@ -44,7 +44,7 @@ func Execute(ctx context.Context, c cluster.ClusterClient, plan model.Plan, reve
 	return res, nil
 }
 
-func perform(ctx context.Context, c cluster.ClusterClient, a model.Action, rv string) error {
+func perform(ctx context.Context, c cluster.Client, a model.Action, rv string) error {
 	switch a.Kind {
 	case model.ActionCleanOrphan:
 		return c.Delete(ctx, a.Target.GVR, a.Target.Namespace, a.Target.Name, rv)

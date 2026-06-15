@@ -1,4 +1,4 @@
-// Package clustertest provides a hand-written fake ClusterClient for unit tests.
+// Package clustertest provides a hand-written fake Client for unit tests.
 package clustertest
 
 import (
@@ -27,7 +27,7 @@ func AllowKey(verb, resource, subresource string) string {
 	return fmt.Sprintf("%s:%s:%s", verb, resource, subresource)
 }
 
-// Fake implements cluster.ClusterClient from in-memory fixtures.
+// Fake implements cluster.Client from in-memory fixtures.
 type Fake struct {
 	Preferred       []*metav1.APIResourceList
 	Lists           map[string]*unstructured.UnstructuredList // key: ListKey(gvr, namespace)

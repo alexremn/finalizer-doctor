@@ -52,7 +52,7 @@ func ParseTarget(in, defaultNS string) (Target, error) {
 
 // Scan lists every preferred, listable resource and returns refs for objects
 // that have a deletionTimestamp and a non-empty finalizer set.
-func Scan(ctx context.Context, c cluster.ClusterClient) ([]model.ResourceRef, error) {
+func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, error) {
 	lists, err := c.ServerPreferredResources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discovery failed: %w", err)
@@ -95,7 +95,7 @@ func canList(verbs []string) bool {
 // NamespaceObjects lists every namespaced, listable resource in the namespace and
 // returns minimal StuckObjects (ref + kind + ownerRefs) as orphan candidates.
 // A failed list on any group is skipped, never fatal.
-func NamespaceObjects(ctx context.Context, c cluster.ClusterClient, namespace string) ([]model.StuckObject, error) {
+func NamespaceObjects(ctx context.Context, c cluster.Client, namespace string) ([]model.StuckObject, error) {
 	lists, err := c.ServerPreferredResources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discovery failed: %w", err)

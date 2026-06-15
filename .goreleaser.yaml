@@ -30,8 +30,43 @@ checksum:
   name_template: "checksums.txt"
 sboms:
   - artifacts: archive
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Refactors
+      regexp: '^.*?refactor(\(.+\))??!?:.+$'
+      order: 3
+    - title: Documentation
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 4
+    - title: Other changes
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - '^style:'
+      - '^Merge '
 release:
   draft: true
+  header: |
+    ## finalizer-doctor {{ .Tag }}
+
+    A safe stuck-`Terminating` doctor for Kubernetes. Install with Homebrew
+    (`brew install alexremn/tap/finalizer-doctor`), krew, or the binaries below.
+  footer: |
+    {{ if .PreviousTag }}**Full changelog**: https://github.com/alexremn/finalizer-doctor/compare/{{ .PreviousTag }}...{{ .Tag }}{{ end }}
 brews:
   - name: finalizer-doctor
     repository:

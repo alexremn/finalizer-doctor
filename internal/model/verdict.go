@@ -3,6 +3,7 @@ package model
 // State is the per-finalizer verdict.
 type State string
 
+// The per-finalizer verdict states.
 const (
 	StateDead    State = "DEAD"
 	StateSlow    State = "SLOW"

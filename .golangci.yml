@@ -1,11 +1,17 @@
+version: "2"
 run:
   timeout: 5m
 linters:
+  # Default set (errcheck, govet, ineffassign, staticcheck, unused) plus revive.
   enable:
-    - govet
-    - staticcheck
-    - errcheck
-    - ineffassign
-    - unused
-    - gofmt
     - revive
+  exclusions:
+    rules:
+      # clustertest is a hand-written test double; per-method doc comments on its
+      # interface implementation are noise.
+      - path: internal/cluster/clustertest/
+        linters:
+          - revive
+formatters:
+  enable:
+    - gofmt

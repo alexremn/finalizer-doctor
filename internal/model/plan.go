@@ -3,6 +3,7 @@ package model
 // ActionKind enumerates the mutating actions the apply stage can perform.
 type ActionKind string
 
+// The mutating action kinds, in plan order (orphans first, finalize last).
 const (
 	ActionCleanOrphan       ActionKind = "CleanOrphan"
 	ActionClearFinalizer    ActionKind = "ClearFinalizer"    // metadata.finalizers patch

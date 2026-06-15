@@ -3,6 +3,7 @@ package model
 // Source identifies an evidence source so reads can be tracked individually.
 type Source string
 
+// The evidence sources a snapshot reads and tracks independently.
 const (
 	SourceTargets        Source = "targets"
 	SourceAPIServices    Source = "apiservices"

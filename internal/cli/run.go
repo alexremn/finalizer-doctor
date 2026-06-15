@@ -33,7 +33,7 @@ func (e *InvalidInvocation) Error() string { return e.Msg }
 // preflight checks the RBAC verbs the run needs via SelfSubjectAccessReview and
 // returns a clear error on the first denial. Reads degrade gracefully elsewhere,
 // so it checks `get` on the target always and the mutating verb when --apply.
-func preflight(ctx context.Context, c cluster.ClusterClient, ref model.ResourceRef, apply bool) error {
+func preflight(ctx context.Context, c cluster.Client, ref model.ResourceRef, apply bool) error {
 	get := authv1.ResourceAttributes{Group: ref.GVR.Group, Resource: ref.GVR.Resource, Namespace: ref.Namespace, Name: ref.Name, Verb: "get"}
 	if err := mustAllow(ctx, c, get, "get", resourceDesc(ref)); err != nil {
 		return err
@@ -49,7 +49,7 @@ func preflight(ctx context.Context, c cluster.ClusterClient, ref model.ResourceR
 	return mustAllow(ctx, c, patch, "patch", resourceDesc(ref))
 }
 
-func mustAllow(ctx context.Context, c cluster.ClusterClient, attrs authv1.ResourceAttributes, verb, desc string) error {
+func mustAllow(ctx context.Context, c cluster.Client, attrs authv1.ResourceAttributes, verb, desc string) error {
 	ok, err := c.Can(ctx, attrs)
 	if err != nil {
 		return fmt.Errorf("RBAC pre-flight failed: %w", err)
@@ -76,7 +76,7 @@ func appendAudit(path string, ref model.ResourceRef, records []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	ts := time.Now().UTC().Format(time.RFC3339)
 	for _, r := range records {
 		if _, err := fmt.Fprintf(f, "%s\t%s\t%s\n", ts, ref.String(), r); err != nil {
@@ -109,7 +109,7 @@ type targetResult struct {
 
 // Run executes the read pipeline (and, when Apply, the gated mutation). Returns
 // rendered output, a process exit code, and an error for operational failures.
-func Run(ctx context.Context, c cluster.ClusterClient, o Options) (string, int, error) {
+func Run(ctx context.Context, c cluster.Client, o Options) (string, int, error) {
 	if o.Apply && o.All {
 		return "", 1, &InvalidInvocation{Msg: "--apply cannot be combined with --all"}
 	}
@@ -153,7 +153,7 @@ func strategyFor(o Options) verdict.Verdicter {
 }
 
 // diagnose builds a snapshot for the given refs and verdicts every finalizer.
-func diagnose(ctx context.Context, c cluster.ClusterClient, refs []model.ResourceRef, now time.Time, strat verdict.Verdicter) (model.Snapshot, []targetResult, error) {
+func diagnose(ctx context.Context, c cluster.Client, refs []model.ResourceRef, now time.Time, strat verdict.Verdicter) (model.Snapshot, []targetResult, error) {
 	snap, err := snapshot.Build(ctx, c, refs, now)
 	if err != nil {
 		return model.Snapshot{}, nil, fmt.Errorf("snapshot: %w", err)
@@ -187,7 +187,7 @@ func orphanScanNamespace(obj model.StuckObject) string {
 	return obj.Ref.Namespace
 }
 
-func detectOrphans(ctx context.Context, c cluster.ClusterClient, obj model.StuckObject) []model.ResourceRef {
+func detectOrphans(ctx context.Context, c cluster.Client, obj model.StuckObject) []model.ResourceRef {
 	ns := orphanScanNamespace(obj)
 	if ns == "" {
 		return nil
@@ -249,7 +249,7 @@ func renderDryRun(o Options, snap model.Snapshot, results []targetResult) string
 	return out
 }
 
-func runApply(ctx context.Context, c cluster.ClusterClient, o Options, snap model.Snapshot, results []targetResult, now time.Time) (string, int, error) {
+func runApply(ctx context.Context, c cluster.Client, o Options, snap model.Snapshot, results []targetResult, now time.Time) (string, int, error) {
 	var out strings.Builder
 	for _, r := range results {
 		if combinedState(r.verdicts) != model.StateDead {
@@ -305,7 +305,7 @@ func runApply(ctx context.Context, c cluster.ClusterClient, o Options, snap mode
 	return out.String(), 0, nil
 }
 
-func resolveTargets(ctx context.Context, c cluster.ClusterClient, o Options) ([]model.ResourceRef, error) {
+func resolveTargets(ctx context.Context, c cluster.Client, o Options) ([]model.ResourceRef, error) {
 	if o.All {
 		return discover.Scan(ctx, c)
 	}
@@ -322,7 +322,7 @@ func resolveTargets(ctx context.Context, c cluster.ClusterClient, o Options) ([]
 
 // resolveGVR turns a parsed target into a concrete GVR using discovery, falling
 // back to a v1 guess when discovery does not list the resource.
-func resolveGVR(ctx context.Context, c cluster.ClusterClient, t discover.Target) (model.ResourceRef, error) {
+func resolveGVR(ctx context.Context, c cluster.Client, t discover.Target) (model.ResourceRef, error) {
 	lists, err := c.ServerPreferredResources(ctx)
 	if err == nil {
 		for _, rl := range lists {

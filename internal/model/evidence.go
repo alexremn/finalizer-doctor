@@ -4,6 +4,7 @@ package model
 // algorithm (verdict-engine.md §6) and the render tags (§10).
 type Class string
 
+// Evidence classes, from strongest dead signal to non-signal.
 const (
 	ClassDeadHard   Class = "DeadHard"   // hard proof the owner is gone
 	ClassDeadSoft   Class = "DeadSoft"   // suggestive only (time/staleness); score mode only

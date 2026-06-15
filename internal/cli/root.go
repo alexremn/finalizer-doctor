@@ -58,16 +58,16 @@ func newRootCmd(code *int) *cobra.Command {
 				dry.Apply = false
 				dry.Interactive = false
 				if dout, _, derr := Run(cmd.Context(), client, dry); derr == nil {
-					fmt.Fprint(cmd.OutOrStdout(), dout)
+					_, _ = fmt.Fprint(cmd.OutOrStdout(), dout)
 				}
-				fmt.Fprint(cmd.ErrOrStderr(), "Type the resource name to confirm: ")
+				_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Type the resource name to confirm: ")
 				line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 				o.TypedName = strings.TrimSpace(line)
 			}
 
 			out, c, err := Run(cmd.Context(), client, o)
 			*code = c
-			fmt.Fprint(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), out)
 			return err
 		},
 	}
@@ -88,7 +88,7 @@ func newRootCmd(code *int) *cobra.Command {
 	return cmd
 }
 
-func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.ClusterClient, error) {
+func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.Client, error) {
 	rules := clientcmd.NewDefaultClientConfigLoadingRules()
 	if kubeconfig != "" {
 		rules.ExplicitPath = kubeconfig

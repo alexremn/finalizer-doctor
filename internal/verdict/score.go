@@ -7,6 +7,8 @@ import "github.com/alexremn/finalizer-doctor/internal/model"
 // never produce DEAD alone (verdict-engine.md §7).
 type Score struct{}
 
+// Verdict applies the same three vetoes as Strict, then requires >=1 hard signal
+// AND score >= threshold for DEAD (verdict-engine.md §7).
 func (Score) Verdict(owner model.OwnerCandidate, ev []model.Evidence) model.Verdict {
 	total := scoreOf(ev)
 	if owner.Kind == "Unknown" {

@@ -1,5 +1,5 @@
-// Package snapshot converts a ClusterClient's reads into an immutable
-// model.Snapshot. It is the only consumer of ClusterClient besides apply.
+// Package snapshot converts a Client's reads into an immutable
+// model.Snapshot. It is the only consumer of Client besides apply.
 package snapshot
 
 import (
@@ -44,7 +44,7 @@ func extractConditions(o *unstructured.Unstructured) []model.Condition {
 // Build reads every evidence source and assembles an immutable Snapshot.
 // A read error on any source marks that source Unreadable (never fatal) so the
 // verdict engine can apply its cannot-probe-≠-dead veto.
-func Build(ctx context.Context, c cluster.ClusterClient, refs []model.ResourceRef, now time.Time) (model.Snapshot, error) {
+func Build(ctx context.Context, c cluster.Client, refs []model.ResourceRef, now time.Time) (model.Snapshot, error) {
 	s := model.Snapshot{Now: now, SourceStatus: map[model.Source]model.ReadStatus{}}
 
 	for _, ref := range refs {

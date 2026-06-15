@@ -11,9 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// ClusterClient is the narrow boundary over client-go. Implementations return
+// Client is the narrow boundary over client-go. Implementations return
 // plain API objects; all interpretation happens in pure stages.
-type ClusterClient interface {
+type Client interface {
 	// Discovery & read.
 	ServerPreferredResources(ctx context.Context) ([]*metav1.APIResourceList, error)
 	List(ctx context.Context, gvr schema.GroupVersionResource, namespace string) (*unstructured.UnstructuredList, error)

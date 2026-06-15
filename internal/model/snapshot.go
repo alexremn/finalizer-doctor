@@ -9,6 +9,7 @@ import (
 // ReadStatus records whether an evidence source was read successfully.
 type ReadStatus string
 
+// Read outcomes for an evidence source.
 const (
 	ReadOK         ReadStatus = "ok"
 	ReadUnreadable ReadStatus = "unreadable"
