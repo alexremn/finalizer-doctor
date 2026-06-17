@@ -22,6 +22,12 @@ jobs:
         with: { go-version: "1.26" }
       - uses: golangci/golangci-lint-action@v9
         with: { version: latest }
-  # ponytail: dropped the integration job — no //go:build integration tests exist
-  # yet, so it was a no-op that still paid to download envtest. Add a real envtest
-  # suite + this job together in v0.2.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with: { go-version: "1.26" }
+      - run: |
+          KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path)" \
+            go test -tags integration ./internal/cluster/...
