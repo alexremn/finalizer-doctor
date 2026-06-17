@@ -16,15 +16,26 @@ func nsRef() model.ResourceRef {
 	return model.ResourceRef{GVR: schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}, Name: "foo"}
 }
 
+func dead(rv string, meta, spec []string) ReverifyFunc {
+	return func(model.ResourceRef) (ReverifyResult, error) {
+		return ReverifyResult{State: model.StateDead, ResourceVersion: rv, MetadataFinalizers: meta, SpecFinalizers: spec}, nil
+	}
+}
+
+func TestRemoveFinalizerKeepsOthers(t *testing.T) {
+	assert.Equal(t, []string{"b"}, removeFinalizer([]string{"a", "b"}, "a"))
+	assert.Equal(t, []string{}, removeFinalizer([]string{"a"}, "a"))
+	assert.Equal(t, []string{"a", "b"}, removeFinalizer([]string{"a", "b"}, "missing"))
+}
+
 func TestExecuteRunsActionsInOrder(t *testing.T) {
 	f := &clustertest.Fake{}
 	plan := model.Plan{Actions: []model.Action{
 		{Kind: model.ActionCleanOrphan, Target: model.ResourceRef{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Namespace: "foo", Name: "child"}},
 		{Kind: model.ActionFinalizeNamespace, Target: nsRef(), Finalizer: "kubernetes"},
 	}}
-	reverify := func(model.ResourceRef) (model.State, string, error) { return model.StateDead, "100", nil }
 
-	res, err := Execute(context.Background(), f, plan, reverify)
+	res, err := Execute(context.Background(), f, plan, dead("100", nil, []string{"kubernetes"}))
 	require.NoError(t, err)
 	assert.Equal(t, 2, res.Completed)
 	require.Len(t, f.Mutations, 2)
@@ -35,7 +46,7 @@ func TestExecuteRunsActionsInOrder(t *testing.T) {
 func TestExecuteAbortsWhenReverifyNoLongerDead(t *testing.T) {
 	f := &clustertest.Fake{}
 	plan := model.Plan{Actions: []model.Action{{Kind: model.ActionFinalizeNamespace, Target: nsRef(), Finalizer: "kubernetes"}}}
-	reverify := func(model.ResourceRef) (model.State, string, error) { return model.StateSlow, "100", nil }
+	reverify := func(model.ResourceRef) (ReverifyResult, error) { return ReverifyResult{State: model.StateSlow}, nil }
 
 	_, err := Execute(context.Background(), f, plan, reverify)
 	assert.ErrorIs(t, err, ErrReverifyChanged)
@@ -47,8 +58,7 @@ func TestExecuteStopsOnFirstError(t *testing.T) {
 	plan := model.Plan{Actions: []model.Action{
 		{Kind: model.ActionClearFinalizer, Target: model.ResourceRef{GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Namespace: "foo", Name: "c"}, Finalizer: "op/x"},
 	}}
-	reverify := func(model.ResourceRef) (model.State, string, error) { return model.StateDead, "5", nil }
-	res, err := Execute(context.Background(), f, plan, reverify)
+	res, err := Execute(context.Background(), f, plan, dead("5", []string{"op/x"}, nil))
 	require.Error(t, err)
 	assert.Equal(t, 0, res.Completed)
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/alexremn/finalizer-doctor/internal/cluster"
@@ -104,6 +105,8 @@ func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.Cl
 	if timeout > 0 {
 		cfg.Timeout = timeout // per-request timeout at the HTTP client level
 	}
+	// Don't print apiserver deprecation warnings for resources we only enumerate.
+	cfg.WarningHandler = rest.NoWarnings{}
 	return cluster.NewFromConfig(cfg)
 }
 

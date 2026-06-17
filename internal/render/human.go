@@ -15,6 +15,9 @@ func Human(verdicts []model.Verdict, plan model.Plan) string {
 		fmt.Fprintf(&b, "blocking finalizer: %s\n", v.Finalizer)
 		fmt.Fprintf(&b, "  attributed to:    %s [%s]\n", v.Owner.MatchReason, v.Owner.Kind)
 		fmt.Fprintf(&b, "  verdict:          %s\n", v.State)
+		if v.Score != nil {
+			fmt.Fprintf(&b, "  score:            %d\n", *v.Score)
+		}
 		fmt.Fprintln(&b, "  evidence:")
 		for _, e := range v.Evidence {
 			fmt.Fprintf(&b, "    %s %s\n", e.Class.Tag(), e.Observed)

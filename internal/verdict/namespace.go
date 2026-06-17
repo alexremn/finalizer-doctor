@@ -26,12 +26,22 @@ func NamespaceKubernetes(obj model.StuckObject, snap model.Snapshot) model.Verdi
 	}
 	var ev []model.Evidence
 
-	if !conditionTrue(obj.NamespaceConditions, "NamespaceDeletionDiscoveryFailure") {
-		// Not the classic dead-APIService signature; this special case can't prove it.
-		ev = append(ev, model.Evidence{Signal: "namespace condition", Source: model.SourceTargets, Observed: "no NamespaceDeletionDiscoveryFailure; stuck for another reason", Class: model.ClassNeutral})
+	if !conditionTrue(obj.NamespaceConditions, "NamespaceDeletionDiscoveryFailure") &&
+		!conditionTrue(obj.NamespaceConditions, "NamespaceDeletionGroupVersionParsingFailure") {
+		// Not the classic dead-API signature; this special case can't prove it.
+		ev = append(ev, model.Evidence{Signal: "namespace condition", Source: model.SourceTargets, Observed: "no discovery/parsing failure; stuck for another reason", Class: model.ClassNeutral})
 		return finalize(owner, ev, model.StateUnknown, nil)
 	}
-	ev = append(ev, model.Evidence{Signal: "namespace condition", Source: model.SourceTargets, Observed: "NamespaceDeletionDiscoveryFailure=True", Class: model.ClassDeadHard, Weight: 35})
+	ev = append(ev, model.Evidence{Signal: "namespace condition", Source: model.SourceTargets, Observed: "discovery/group-version failure present", Class: model.ClassDeadHard, Weight: 35})
+
+	// Either of these means the namespace will re-stick or content removal is
+	// failing — clearing `kubernetes` would orphan live content. Refuse.
+	for _, c := range []string{"NamespaceFinalizersRemaining", "NamespaceDeletionContentFailure"} {
+		if conditionTrue(obj.NamespaceConditions, c) {
+			ev = append(ev, model.Evidence{Signal: "namespace condition", Source: model.SourceTargets, Observed: c + "=True (downstream still holding the namespace)", Class: model.ClassLive})
+			return finalize(owner, ev, model.StateSlow, nil)
+		}
+	}
 
 	if !snap.Readable(model.SourceAPIServices) || !snap.Readable(model.SourceCRDs) {
 		ev = append(ev, model.Evidence{Signal: "evidence sources", Source: model.SourceAPIServices, Observed: "could not read APIServices/CRDs", Class: model.ClassUnreadable})

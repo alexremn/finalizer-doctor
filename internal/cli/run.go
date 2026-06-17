@@ -9,6 +9,7 @@ import (
 
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/alexremn/finalizer-doctor/internal/apply"
@@ -274,19 +275,25 @@ func runApply(ctx context.Context, c cluster.Client, o Options, snap model.Snaps
 		// Re-verify gates on the PARENT target's DEAD state (an orphan is not a
 		// finalizer-bearing object), but pins the action target's OWN
 		// resourceVersion so each mutation has a correct precondition.
-		reverify := func(actionRef model.ResourceRef) (model.State, string, error) {
+		reverify := func(actionRef model.ResourceRef) (apply.ReverifyResult, error) {
 			_, rr, err := diagnose(ctx, c, []model.ResourceRef{target}, now, strategyFor(o))
 			if err != nil || len(rr) == 0 {
-				return model.StateUnknown, "", err
+				return apply.ReverifyResult{State: model.StateUnknown}, err
 			}
 			if st := combinedState(rr[0].verdicts); st != model.StateDead {
-				return st, "", nil
+				return apply.ReverifyResult{State: st}, nil
 			}
 			cur, err := c.Get(ctx, actionRef.GVR, actionRef.Namespace, actionRef.Name)
 			if err != nil {
-				return model.StateUnknown, "", err
+				return apply.ReverifyResult{State: model.StateUnknown}, err
 			}
-			return model.StateDead, cur.GetResourceVersion(), nil
+			spec, _, _ := unstructured.NestedStringSlice(cur.Object, "spec", "finalizers")
+			return apply.ReverifyResult{
+				State:              model.StateDead,
+				ResourceVersion:    cur.GetResourceVersion(),
+				MetadataFinalizers: cur.GetFinalizers(),
+				SpecFinalizers:     spec,
+			}, nil
 		}
 		res, err := apply.Execute(ctx, c, p, reverify)
 		for _, a := range res.Audit {

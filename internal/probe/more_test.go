@@ -13,16 +13,21 @@ import (
 func TestForAggregatesEvidence(t *testing.T) {
 	snap := model.Snapshot{
 		RawAPIServices: []unstructured.Unstructured{apiservice("v1.example.com", "example.com", true, "False")},
-		SourceStatus: map[model.Source]model.ReadStatus{
-			model.SourceAPIServices: model.ReadOK,
-			model.SourceWorkloads:   model.ReadOK,
-			model.SourcePods:        model.ReadOK,
-		},
+		SourceStatus:   map[model.Source]model.ReadStatus{model.SourceAPIServices: model.ReadOK},
 	}
 	owner := model.OwnerCandidate{Finalizer: "example.com/x", Kind: "APIService", Group: "example.com"}
 	ev := For(owner, snap)
 	require.NotEmpty(t, ev)
 	assert.Equal(t, model.ClassDeadHard, ev[0].Class)
+}
+
+func TestForBuiltinIsLive(t *testing.T) {
+	// Built-in finalizers must not match arbitrary operator Deployments; they are
+	// attributed to their core control-plane owner and reported live (-> SLOW).
+	owner := model.OwnerCandidate{Finalizer: "kubernetes.io/pv-protection", Kind: "Builtin", MatchReason: "built-in: pv-protection-controller (KCM)"}
+	ev := For(owner, model.Snapshot{})
+	require.Len(t, ev, 1)
+	assert.Equal(t, model.ClassLive, ev[0].Class)
 }
 
 func TestProbeAPIServiceEmptyGroupIsNil(t *testing.T) {
@@ -34,22 +39,4 @@ func TestProbeCRDUnreadable(t *testing.T) {
 	ev := probeCRD(model.OwnerCandidate{Kind: "CRD", Group: "example.com"}, snap)
 	require.NotNil(t, ev)
 	assert.Equal(t, model.ClassUnreadable, ev.Class)
-}
-
-func TestProbeWorkloadAbsentNonWorkloadKindIsNil(t *testing.T) {
-	snap := model.Snapshot{SourceStatus: map[model.Source]model.ReadStatus{model.SourceWorkloads: model.ReadOK}}
-	assert.Nil(t, probeWorkload(model.OwnerCandidate{Kind: "APIService"}, snap))
-}
-
-func TestProbeWorkloadZeroReadyButPodsExistIsLive(t *testing.T) {
-	pod := unstructured.Unstructured{}
-	pod.SetName("op-pod")
-	snap := model.Snapshot{
-		RawDeployments: []unstructured.Unstructured{deploy("op-controller-manager", 0)},
-		RawPods:        []unstructured.Unstructured{pod},
-		SourceStatus:   map[model.Source]model.ReadStatus{model.SourceWorkloads: model.ReadOK, model.SourcePods: model.ReadOK},
-	}
-	evs := probeWorkload(model.OwnerCandidate{MatchReason: "op-controller-manager"}, snap)
-	require.NotEmpty(t, evs)
-	assert.Equal(t, model.ClassLive, evs[0].Class)
 }

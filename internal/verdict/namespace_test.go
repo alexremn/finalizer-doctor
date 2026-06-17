@@ -79,3 +79,21 @@ func TestNamespaceKubernetesUnreadableSourcesIsUnknown(t *testing.T) {
 	v := NamespaceKubernetes(obj, snap)
 	assert.Equal(t, model.StateUnknown, v.State)
 }
+
+func TestNamespaceKubernetesFinalizersRemainingIsSlow(t *testing.T) {
+	obj := nsObj(
+		model.Condition{Type: "NamespaceDeletionDiscoveryFailure", Status: "True"},
+		model.Condition{Type: "NamespaceFinalizersRemaining", Status: "True"},
+	)
+	snap := model.Snapshot{RawAPIServices: []unstructured.Unstructured{deadAS("metrics.example.com")}, SourceStatus: bothReadable()}
+	assert.Equal(t, model.StateSlow, NamespaceKubernetes(obj, snap).State)
+}
+
+func TestNamespaceKubernetesContentFailureIsSlow(t *testing.T) {
+	obj := nsObj(
+		model.Condition{Type: "NamespaceDeletionGroupVersionParsingFailure", Status: "True"},
+		model.Condition{Type: "NamespaceDeletionContentFailure", Status: "True"},
+	)
+	snap := model.Snapshot{RawAPIServices: []unstructured.Unstructured{deadAS("metrics.example.com")}, SourceStatus: bothReadable()}
+	assert.Equal(t, model.StateSlow, NamespaceKubernetes(obj, snap).State)
+}
