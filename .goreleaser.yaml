@@ -60,24 +60,33 @@ release:
 
     ---
   # No footer: github-native already appends a "Full Changelog" link.
-brews:
+# homebrew_casks (brews: is deprecated for pre-built CLI binaries). Both binaries
+# are auto-detected from the archive and placed on PATH.
+homebrew_casks:
   - name: finalizer-doctor
     repository:
       owner: alexremn
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
     homepage: https://github.com/alexremn/finalizer-doctor
     description: Safely diagnose and clear finalizers on stuck-Terminating Kubernetes resources
-    license: Apache-2.0
+    # Two binaries, neither named "finalizer-doctor" (the cask name), so declare
+    # them explicitly. `binaries:` (plural) is the current field; `binary:` is deprecated.
+    binaries:
+      - kubectl-finalizer_doctor
+      - kubectl-fid
     commit_author:
       name: goreleaser-bot
       email: goreleaser@users.noreply.github.com
-    install: |
-      bin.install "kubectl-finalizer_doctor"
-      bin.install "kubectl-fid"
-    test: |
-      system "#{bin}/kubectl-finalizer_doctor", "version"
+    # Strip the macOS quarantine xattr so the unsigned binaries run without a prompt.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            ["kubectl-finalizer_doctor", "kubectl-fid"].each do |b|
+              system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/#{b}"]
+            end
+          end
     caveats: |
       Installed as kubectl plugins (both binaries are placed on your PATH):
         kubectl finalizer-doctor <target>
