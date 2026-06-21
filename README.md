@@ -53,13 +53,11 @@ Download the archive for your platform from the
 both `kubectl-finalizer_doctor` and `kubectl-fid` on your `PATH`. `kubectl` will
 then expose them as `kubectl finalizer-doctor` and `kubectl fid`.
 
-### krew (manifest)
+### krew
 
 ```bash
-kubectl krew install --manifest=.krew.yaml
+kubectl krew install finalizer-doctor
 ```
-
-(krew-index submission is planned post-v1.)
 
 ## Usage
 
