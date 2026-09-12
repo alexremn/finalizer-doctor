@@ -11,4 +11,4 @@ jobs:
       - uses: actions/checkout@v6
       # Reads .krew.yaml, fills version + per-archive sha256 from the release,
       # and opens a PR to kubernetes-sigs/krew-index (first submission + updates).
-      - uses: rajatjindal/krew-release-bot@v0.0.47
+      - uses: rajatjindal/krew-release-bot@v0.0.51
