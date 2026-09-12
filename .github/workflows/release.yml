@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with: { fetch-depth: 0 }
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with: { go-version: "1.26" }
       # Third-party actions in this secret-bearing job are pinned to immutable
       # commit SHAs (supply-chain hardening). Update the SHA + comment together.
