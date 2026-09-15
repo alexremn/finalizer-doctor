@@ -3,6 +3,11 @@ updates:
   - package-ecosystem: gomod
     directory: "/"
     schedule: { interval: weekly }
+    groups:
+      # k8s.io/* must move together: a lone k8s.io/api bump fails `go mod tidy`
+      # because client-go pins the matching api/apimachinery minor.
+      kubernetes:
+        patterns: ["k8s.io/*"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly }
