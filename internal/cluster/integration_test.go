@@ -95,3 +95,17 @@ func TestIntegrationFinalizeNamespace(t *testing.T) {
 	_, err = cs.CoreV1().Namespaces().Get(ctx, "stuck-ns", metav1.GetOptions{})
 	assert.True(t, apierrors.IsNotFound(err))
 }
+
+func TestIntegrationServerPreferredResourcesHonorsContext(t *testing.T) {
+	c, err := NewFromConfig(startEnv(t))
+	require.NoError(t, err)
+	lists, err := c.ServerPreferredResources(context.Background())
+	require.NoError(t, err)
+	assert.NotEmpty(t, lists)
+
+	// Discovery must propagate the caller's context (it used to be discarded).
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = c.ServerPreferredResources(canceled)
+	assert.ErrorIs(t, err, context.Canceled)
+}

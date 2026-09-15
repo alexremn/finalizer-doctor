@@ -33,7 +33,7 @@ var (
 
 type clientGo struct {
 	dyn  dynamic.Interface
-	disc discovery.DiscoveryInterface
+	disc discovery.DiscoveryInterfaceWithContext
 	cs   kubernetes.Interface
 }
 
@@ -54,8 +54,8 @@ func NewFromConfig(cfg *rest.Config) (Client, error) {
 	return &clientGo{dyn: dyn, disc: disc, cs: cs}, nil
 }
 
-func (c *clientGo) ServerPreferredResources(_ context.Context) ([]*metav1.APIResourceList, error) {
-	return c.disc.ServerPreferredResources()
+func (c *clientGo) ServerPreferredResources(ctx context.Context) ([]*metav1.APIResourceList, error) {
+	return c.disc.ServerPreferredResourcesWithContext(ctx)
 }
 
 func (c *clientGo) List(ctx context.Context, gvr schema.GroupVersionResource, ns string) (*unstructured.UnstructuredList, error) {
