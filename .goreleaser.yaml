@@ -79,14 +79,14 @@ homebrew_casks:
       name: goreleaser-bot
       email: goreleaser@users.noreply.github.com
     # Strip the macOS quarantine xattr so the unsigned binaries run without a prompt.
-    hooks:
-      post:
-        install: |
-          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            ["kubectl-finalizer_doctor", "kubectl-fid"].each do |b|
-              system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/#{b}"]
-            end
-          end
+    # ponytail: custom_block, not hooks.post.install — hooks emit Homebrew's deprecated
+    # `postflight`; switch back once goreleaser ships postflight_steps (goreleaser#6873).
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "kubectl-finalizer_doctor", "kubectl-fid"], chdir: "."
+        end
+      end
     caveats: |
       Installed as kubectl plugins (both binaries are placed on your PATH):
         kubectl finalizer-doctor <target>
