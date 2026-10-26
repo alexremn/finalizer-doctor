@@ -21,12 +21,11 @@ func For(owner model.OwnerCandidate, snap model.Snapshot) []model.Evidence {
 			Class:    model.ClassLive,
 		}}
 	}
-	var ev []model.Evidence
+	// No CRD-presence probe: mapping attributes a finalizer to a CRD only when
+	// that CRD exists in the same snapshot, so "CRD absent" can never be observed
+	// for it. A CRD-owned finalizer gets no evidence here, so it verdicts UNKNOWN.
 	if e := probeAPIService(owner, snap); e != nil {
-		ev = append(ev, *e)
+		return []model.Evidence{*e}
 	}
-	if e := probeCRD(owner, snap); e != nil {
-		ev = append(ev, *e)
-	}
-	return ev
+	return nil
 }

@@ -30,13 +30,16 @@ func TestForBuiltinIsLive(t *testing.T) {
 	assert.Equal(t, model.ClassLive, ev[0].Class)
 }
 
-func TestProbeAPIServiceEmptyGroupIsNil(t *testing.T) {
-	assert.Nil(t, probeAPIService(model.OwnerCandidate{Kind: "APIService"}, model.Snapshot{}))
+func TestForCRDOwnerHasNoDeadSignal(t *testing.T) {
+	crd := unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"group": "example.com"}}}
+	snap := model.Snapshot{
+		RawCRDs:      []unstructured.Unstructured{crd},
+		SourceStatus: map[model.Source]model.ReadStatus{model.SourceCRDs: model.ReadOK, model.SourceAPIServices: model.ReadOK},
+	}
+	owner := model.OwnerCandidate{Finalizer: "example.com/x", Kind: "CRD", Group: "example.com"}
+	assert.Empty(t, For(owner, snap), "a present CRD proves nothing about its controller")
 }
 
-func TestProbeCRDUnreadable(t *testing.T) {
-	snap := model.Snapshot{SourceStatus: map[model.Source]model.ReadStatus{model.SourceCRDs: model.ReadUnreadable}}
-	ev := probeCRD(model.OwnerCandidate{Kind: "CRD", Group: "example.com"}, snap)
-	require.NotNil(t, ev)
-	assert.Equal(t, model.ClassUnreadable, ev.Class)
+func TestProbeAPIServiceEmptyGroupIsNil(t *testing.T) {
+	assert.Nil(t, probeAPIService(model.OwnerCandidate{Kind: "APIService"}, model.Snapshot{}))
 }
