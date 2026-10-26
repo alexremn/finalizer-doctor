@@ -13,7 +13,7 @@ make integration # envtest-backed adapter tests (needs setup-envtest)
 make e2e         # real-cluster end-to-end (needs a throwaway kind cluster + kubectl)
 ```
 
-This project is built with **Go 1.26** and a pure-pipeline architecture: the
+This project is built with **Go 1.27** and a pure-pipeline architecture: the
 domain logic in `internal/` is pure and table-tested; only `internal/cluster`
 touches the Kubernetes API.
 
