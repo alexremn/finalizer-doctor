@@ -5,13 +5,15 @@ on:
   workflow_call: {} # reused by the release workflow as a gate
 permissions:
   contents: read
+# setup-go check-latest: without it "1.26" resolves to the runner image's cached
+# patch release, which can lag stdlib security fixes (v0.1.6 shipped go1.26.9).
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", check-latest: true }
       - run: go test -race -coverprofile=coverage.out ./...
       - run: go tool cover -func=coverage.out | tail -n 1
   lint:
@@ -19,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", check-latest: true }
       - uses: golangci/golangci-lint-action@v9
         with: { version: latest }
   integration:
@@ -27,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", check-latest: true }
       - run: |
           KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path)" \
             go test -tags integration ./internal/cluster/...
@@ -37,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", check-latest: true }
       # Real cluster on kind's default (latest) Kubernetes; the test builds the
       # plugin and drives it with the runner's preinstalled kubectl.
       - run: go run sigs.k8s.io/kind@latest create cluster --wait 180s
@@ -47,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", check-latest: true }
       # Dependabot never bumps indirect deps (e.g. golang.org/x/net) and many Go
       # vulndb entries carry no GitHub advisory, so scan the reachable code here.
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
