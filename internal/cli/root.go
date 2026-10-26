@@ -47,24 +47,31 @@ func newRootCmd(code *int) *cobra.Command {
 				}
 				o.Target = args[0]
 			}
+			if err := validate(o); err != nil {
+				*code = 1
+				return err
+			}
 			client, err := buildClient(kubeconfig, kcontext, timeout)
 			if err != nil {
 				*code = 1
 				return err
 			}
 			o.Interactive = isTTY()
+			o.Warn = cmd.ErrOrStderr()
 
-			// Interactive apply: show the fresh dry-run, then require the typed name.
+			// Interactive apply: show the fresh dry-run and, only if it found the
+			// target stuck, require the typed name. Otherwise the apply below refuses
+			// or errors by itself: without a typed name the gate never authorizes.
 			if o.Apply && o.Interactive {
 				dry := o
 				dry.Apply = false
 				dry.Interactive = false
-				if dout, _, derr := Run(cmd.Context(), client, dry); derr == nil {
+				if dout, dcode, derr := Run(cmd.Context(), client, dry); derr == nil && dcode == 2 {
 					_, _ = fmt.Fprint(cmd.OutOrStdout(), dout)
+					_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Type the resource name to confirm: ")
+					line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+					o.TypedName = strings.TrimSpace(line)
 				}
-				_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Type the resource name to confirm: ")
-				line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-				o.TypedName = strings.TrimSpace(line)
 			}
 
 			out, c, err := Run(cmd.Context(), client, o)
@@ -88,6 +95,20 @@ func newRootCmd(code *int) *cobra.Command {
 
 	cmd.AddCommand(newVersionCmd())
 	return cmd
+}
+
+// validate rejects bad flag combinations and values before any kubeconfig or
+// cluster access, so a usage error is never masked by a connection error.
+func validate(o Options) error {
+	switch {
+	case o.Apply && o.All:
+		return errApplyWithAll
+	case o.Verdict != "strict" && o.Verdict != "score":
+		return &InvalidInvocation{Msg: fmt.Sprintf("invalid --verdict %q: want strict|score", o.Verdict)}
+	case o.Output != "human" && o.Output != "json":
+		return &InvalidInvocation{Msg: fmt.Sprintf("invalid --output %q: want human|json", o.Output)}
+	}
+	return nil
 }
 
 func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.Client, error) {

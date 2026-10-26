@@ -24,22 +24,25 @@ func (d stubDisc) ServerPreferredResourcesWithContext(context.Context) ([]*metav
 	return d.lists, d.err
 }
 
-func TestServerPreferredResourcesKeepsPartialOnGroupFailure(t *testing.T) {
+func TestPreferredResourcesKeepsPartialAndNamesFailedGroups(t *testing.T) {
 	core := []*metav1.APIResourceList{{GroupVersion: "v1", APIResources: []metav1.APIResource{{Name: "configmaps"}}}}
 	dead := &discovery.ErrGroupDiscoveryFailed{Groups: map[schema.GroupVersion]error{
 		{Group: "metrics.example.com", Version: "v1beta1"}: errors.New("stale GroupVersion discovery"),
+		{Group: "a.example.com", Version: "v1"}:            errors.New("stale GroupVersion discovery"),
 	}}
 	c := &clientGo{disc: stubDisc{lists: core, err: dead}}
 
-	got, err := c.ServerPreferredResources(context.Background())
+	got, failed, err := PreferredResources(context.Background(), c)
 	require.NoError(t, err, "a dead aggregated group must not fail discovery of the healthy ones")
 	assert.Equal(t, core, got)
+	assert.Equal(t, []string{"a.example.com/v1", "metrics.example.com/v1beta1"}, failed, "sorted for stable output")
 }
 
-func TestServerPreferredResourcesPropagatesTotalFailure(t *testing.T) {
+func TestPreferredResourcesPropagatesTotalFailure(t *testing.T) {
 	c := &clientGo{disc: stubDisc{err: errors.New("connection refused")}}
-	_, err := c.ServerPreferredResources(context.Background())
+	_, failed, err := PreferredResources(context.Background(), c)
 	assert.ErrorContains(t, err, "connection refused")
+	assert.Nil(t, failed)
 }
 
 func TestNewFromConfigBuildsClient(t *testing.T) {

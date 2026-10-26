@@ -107,6 +107,7 @@ func TestStuckNamespaceOnDeadAPIServiceIsCleared(t *testing.T) {
 	out, errOut, code := fd(t, "--all")
 	require.Equal(t, 2, code, out+errOut)
 	assert.Contains(t, out, "to apply: kubectl finalizer-doctor namespaces/"+ns+" --apply --confirm=")
+	assert.Contains(t, errOut, "warning: API discovery failed for e2e.finalizer-doctor.test/v1beta1")
 
 	// Singular resource name resolves via the (partial) discovery.
 	out, errOut, code = fd(t, "namespace/"+ns, "--output", "json")
@@ -152,6 +153,9 @@ func TestUnattributableFinalizerIsNeverCleared(t *testing.T) {
 	out, errOut, code := fd(t, "cm/"+cm, "-n", ns)
 	assert.Equal(t, 0, code, out+errOut)
 	assert.Equal(t, "not stuck: configmaps/held -n e2e-held is not terminating on finalizers\n", out)
+	out, errOut, code = fd(t, "cm/"+cm, "-n", ns, "--apply", "--confirm=000000000000")
+	assert.Equal(t, 3, code, out+errOut)
+	assert.Contains(t, out, "refused: configmaps/held -n e2e-held is not terminating")
 
 	kubectl(t, "", "-n", ns, "delete", "configmap", cm, "--wait=false")
 

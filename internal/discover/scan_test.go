@@ -2,6 +2,7 @@ package discover
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 
 	"github.com/alexremn/finalizer-doctor/internal/cluster/clustertest"
 )
@@ -37,8 +39,9 @@ func TestScanFindsOnlyStuck(t *testing.T) {
 		},
 	}
 
-	refs, err := Scan(context.Background(), f)
+	refs, skipped, err := Scan(context.Background(), f)
 	require.NoError(t, err)
+	assert.Empty(t, skipped)
 	require.Len(t, refs, 1)
 	assert.Equal(t, "w1", refs[0].Name)
 	assert.Equal(t, "widgets", refs[0].GVR.Resource)
@@ -54,7 +57,9 @@ func stuckNamespace(name string) unstructured.Unstructured {
 	return o
 }
 
-func TestScanFindsNamespaceStuckOnSpecFinalizer(t *testing.T) {
+// The real-world shape: a dead aggregated APIService fails discovery for its own
+// group (partial lists + ErrGroupDiscoveryFailed) and strands a namespace.
+func TestScanFindsStuckNamespaceDespiteDeadGroup(t *testing.T) {
 	gvr := schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}
 	f := &clustertest.Fake{
 		Preferred: []*metav1.APIResourceList{{
@@ -64,10 +69,14 @@ func TestScanFindsNamespaceStuckOnSpecFinalizer(t *testing.T) {
 		Lists: map[string]*unstructured.UnstructuredList{
 			clustertest.ListKey(gvr, ""): {Items: []unstructured.Unstructured{stuckNamespace("demo-stuck")}},
 		},
+		Errs: map[string]error{"ServerPreferredResources": &discovery.ErrGroupDiscoveryFailed{
+			Groups: map[schema.GroupVersion]error{{Group: "metrics.example.com", Version: "v1beta1"}: errors.New("stale GroupVersion discovery")},
+		}},
 	}
 
-	refs, err := Scan(context.Background(), f)
+	refs, skipped, err := Scan(context.Background(), f)
 	require.NoError(t, err)
+	assert.Equal(t, []string{"metrics.example.com/v1beta1"}, skipped)
 	require.Len(t, refs, 1)
 	assert.Equal(t, "demo-stuck", refs[0].Name)
 }

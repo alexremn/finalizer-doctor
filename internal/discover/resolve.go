@@ -51,11 +51,12 @@ func ParseTarget(in, defaultNS string) (Target, error) {
 }
 
 // Scan lists every preferred, listable resource and returns refs for stuck
-// objects (see IsStuck).
-func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, error) {
-	lists, err := c.ServerPreferredResources(ctx)
+// objects (see IsStuck), plus the group-versions whose discovery failed and so
+// were not scanned.
+func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, []string, error) {
+	lists, skipped, err := cluster.PreferredResources(ctx, c)
 	if err != nil {
-		return nil, fmt.Errorf("discovery failed: %w", err)
+		return nil, nil, fmt.Errorf("discovery failed: %w", err)
 	}
 	var refs []model.ResourceRef
 	for _, rl := range lists {
@@ -80,7 +81,7 @@ func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, error) {
 			}
 		}
 	}
-	return refs, nil
+	return refs, skipped, nil
 }
 
 // IsStuck reports whether o is being deleted and is held by a finalizer, in
@@ -103,7 +104,7 @@ func canList(verbs []string) bool {
 // returns minimal StuckObjects (ref + kind + ownerRefs) as orphan candidates.
 // A failed list on any group is skipped, never fatal.
 func NamespaceObjects(ctx context.Context, c cluster.Client, namespace string) ([]model.StuckObject, error) {
-	lists, err := c.ServerPreferredResources(ctx)
+	lists, _, err := cluster.PreferredResources(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("discovery failed: %w", err)
 	}

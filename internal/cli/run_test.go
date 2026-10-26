@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -11,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 
 	"github.com/alexremn/finalizer-doctor/internal/cluster/clustertest"
 	"github.com/alexremn/finalizer-doctor/internal/discover"
@@ -89,18 +92,39 @@ func TestRunMissingTargetIsError(t *testing.T) {
 func TestRunNonTerminatingTargetIsNotStuck(t *testing.T) {
 	live := stuckCR()
 	live.SetDeletionTimestamp(nil) // finalizer present, but nobody is deleting it
-	for _, apply := range []bool{false, true} {
+	for _, tc := range []struct {
+		apply bool
+		code  int
+		out   string
+	}{
+		{false, 0, "not stuck: widgets.example.com/w1 -n team-a is not terminating on finalizers\n"},
+		// Under --apply the operator confirmed clearing a stuck object; a live one
+		// (wrong name, or recreated since the dry-run) is a refusal, not "cleared".
+		{true, 3, "refused: widgets.example.com/w1 -n team-a is not terminating on finalizers; nothing to clear\n"},
+	} {
 		f := &clustertest.Fake{APIServiceObjs: []unstructured.Unstructured{deadAPIService()}}
 		f.GetFn = func(context.Context, schema.GroupVersionResource, string, string) (*unstructured.Unstructured, error) {
 			c := live
 			return &c, nil
 		}
-		out, code, err := Run(context.Background(), f, Options{Target: "widgets.example.com/w1", Namespace: "team-a", Apply: apply, Confirm: "x"})
+		out, code, err := Run(context.Background(), f, Options{Target: "widgets.example.com/w1", Namespace: "team-a", Apply: tc.apply, Confirm: "x"})
 		require.NoError(t, err)
-		assert.Equal(t, 0, code, "apply=%v", apply)
-		assert.Equal(t, "not stuck: widgets.example.com/w1 -n team-a is not terminating on finalizers\n", out)
+		assert.Equal(t, tc.code, code, "apply=%v", tc.apply)
+		assert.Equal(t, tc.out, out)
 		assert.Empty(t, f.Mutations, "never strip a finalizer from a live object")
 	}
+}
+
+func TestRunAllWarnsAboutGroupsItCouldNotScan(t *testing.T) {
+	f := &clustertest.Fake{Errs: map[string]error{"ServerPreferredResources": &discovery.ErrGroupDiscoveryFailed{
+		Groups: map[schema.GroupVersion]error{{Group: "metrics.example.com", Version: "v1beta1"}: errors.New("stale GroupVersion discovery")},
+	}}}
+	var warn bytes.Buffer
+	out, code, err := Run(context.Background(), f, Options{All: true, Warn: &warn})
+	require.NoError(t, err)
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "no stuck resources found\n", out, "the warning goes to stderr, never into (JSON) stdout")
+	assert.Equal(t, "warning: API discovery failed for metrics.example.com/v1beta1; objects there were not scanned\n", warn.String())
 }
 
 func TestRunAllTargetVanishedReportsNothingStuck(t *testing.T) {

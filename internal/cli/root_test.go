@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"testing"
 
@@ -37,6 +38,25 @@ func TestIsTTYFalseForDevNull(t *testing.T) {
 	defer func() { os.Stdin = orig }()
 
 	assert.False(t, isTTY())
+}
+
+// Usage errors must surface as usage errors, not be masked by a kubeconfig or
+// cluster failure that happens to come first.
+func TestRootRejectsInvalidFlagsBeforeLoadingKubeconfig(t *testing.T) {
+	for _, args := range [][]string{
+		{"--apply", "--all"},
+		{"ns/x", "--verdict", "strcit"},
+		{"ns/x", "--output", "yaml"},
+	} {
+		var code int
+		root := newRootCmd(&code)
+		root.SetOut(io.Discard)
+		root.SetArgs(append(args, "--kubeconfig", "/nonexistent/kubeconfig"))
+		err := root.Execute()
+		var inv *InvalidInvocation
+		assert.ErrorAs(t, err, &inv, "%v", args)
+		assert.Equal(t, 1, code, "%v", args)
+	}
 }
 
 func TestResolveGVRViaDiscovery(t *testing.T) {

@@ -91,10 +91,13 @@ kubectl finalizer-doctor ns/my-namespace --apply --confirm=<digest>
 
 | Code | Meaning |
 |------|---------|
-| `0` | nothing stuck (incl. a target that is not terminating), or apply cleared cleanly |
-| `1` | operational error or invalid invocation (e.g. target not found, `--apply` with `--all`) |
+| `0` | nothing stuck (incl. a dry-run on a target that is not terminating), or apply cleared cleanly |
+| `1` | operational error or invalid invocation (e.g. target not found, bad flag value, `--apply` with `--all`) |
 | `2` | stuck object(s) found (report-mode signal for CI) |
-| `3` | refused (SLOW/UNKNOWN, gate not satisfied, blocker, re-verify changed) |
+| `3` | refused (SLOW/UNKNOWN, gate not satisfied, blocker, re-verify changed, `--apply` on a target that is not terminating) |
+
+`--all` skips API groups whose discovery fails (typically a dead aggregated
+APIService) and names them in a warning on stderr.
 
 ## Safety model
 

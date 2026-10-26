@@ -49,11 +49,10 @@ type Fake struct {
 
 func (f *Fake) err(name string) error { return f.Errs[name] }
 
+// ServerPreferredResources mirrors client-go: an injected error comes with the
+// fixture lists, so a *discovery.ErrGroupDiscoveryFailed models partial discovery.
 func (f *Fake) ServerPreferredResources(_ context.Context) ([]*metav1.APIResourceList, error) {
-	if e := f.err("ServerPreferredResources"); e != nil {
-		return nil, e
-	}
-	return f.Preferred, nil
+	return f.Preferred, f.err("ServerPreferredResources")
 }
 func (f *Fake) List(_ context.Context, gvr schema.GroupVersionResource, ns string) (*unstructured.UnstructuredList, error) {
 	if e := f.err("List"); e != nil {

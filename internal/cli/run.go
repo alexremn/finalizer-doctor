@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ import (
 type InvalidInvocation struct{ Msg string }
 
 func (e *InvalidInvocation) Error() string { return e.Msg }
+
+var errApplyWithAll = &InvalidInvocation{Msg: "--apply cannot be combined with --all"}
 
 // preflight checks the RBAC verbs the run needs via SelfSubjectAccessReview and
 // returns a clear error on the first denial. Reads degrade gracefully elsewhere,
@@ -104,11 +107,12 @@ type Options struct {
 	All         bool
 	Apply       bool
 	Confirm     string
-	Interactive bool   // TTY; root.go sets this
-	TypedName   string // typed-name prompt input; root.go captures it
-	Verdict     string // "strict" | "score"
-	Output      string // "human" | "json"
-	AuditFile   string // optional path to append audit records to
+	Interactive bool      // TTY; root.go sets this
+	TypedName   string    // typed-name prompt input; root.go captures it
+	Verdict     string    // "strict" | "score"
+	Output      string    // "human" | "json"
+	AuditFile   string    // optional path to append audit records to
+	Warn        io.Writer // non-fatal notes (stderr); nil discards them
 	Now         time.Time
 }
 
@@ -122,7 +126,7 @@ type targetResult struct {
 // rendered output, a process exit code, and an error for operational failures.
 func Run(ctx context.Context, c cluster.Client, o Options) (string, int, error) {
 	if o.Apply && o.All {
-		return "", 1, &InvalidInvocation{Msg: "--apply cannot be combined with --all"}
+		return "", 1, errApplyWithAll
 	}
 	now := o.Now
 	if now.IsZero() {
@@ -150,6 +154,11 @@ func Run(ctx context.Context, c cluster.Client, o Options) (string, int, error) 
 			return "", 1, fmt.Errorf("read target %s: %w", cliTarget(refs[0]), err)
 		}
 		if !discover.IsStuck(obj) {
+			if o.Apply {
+				// The operator confirmed clearing a stuck object; this one isn't
+				// (wrong name, or recreated since the dry-run): refuse, don't report success.
+				return fmt.Sprintf("refused: %s is not terminating on finalizers; nothing to clear\n", cliTarget(refs[0])), 3, nil
+			}
 			return fmt.Sprintf("not stuck: %s is not terminating on finalizers\n", cliTarget(refs[0])), 0, nil
 		}
 	}
@@ -337,7 +346,11 @@ func runApply(ctx context.Context, c cluster.Client, o Options, snap model.Snaps
 
 func resolveTargets(ctx context.Context, c cluster.Client, o Options) ([]model.ResourceRef, error) {
 	if o.All {
-		return discover.Scan(ctx, c)
+		refs, skipped, err := discover.Scan(ctx, c)
+		if len(skipped) > 0 && o.Warn != nil {
+			_, _ = fmt.Fprintf(o.Warn, "warning: API discovery failed for %s; objects there were not scanned\n", strings.Join(skipped, ", "))
+		}
+		return refs, err
 	}
 	t, err := discover.ParseTarget(o.Target, o.Namespace)
 	if err != nil {
@@ -353,7 +366,7 @@ func resolveTargets(ctx context.Context, c cluster.Client, o Options) ([]model.R
 // resolveGVR turns a parsed target into a concrete GVR using discovery, falling
 // back to a v1 guess when discovery does not list the resource.
 func resolveGVR(ctx context.Context, c cluster.Client, t discover.Target) (model.ResourceRef, error) {
-	lists, err := c.ServerPreferredResources(ctx)
+	lists, _, err := cluster.PreferredResources(ctx, c)
 	if err == nil {
 		for _, rl := range lists {
 			gv, e := schema.ParseGroupVersion(rl.GroupVersion)
