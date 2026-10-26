@@ -31,3 +31,14 @@ jobs:
       - run: |
           KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path)" \
             go test -tags integration ./internal/cluster/...
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "1.26" }
+      # Real cluster on kind's default (latest) Kubernetes; the test builds the
+      # plugin and drives it with the runner's preinstalled kubectl.
+      - run: go run sigs.k8s.io/kind@latest create cluster --wait 180s
+      - run: go test -tags e2e -count=1 -v ./test/e2e/...
