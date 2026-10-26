@@ -68,6 +68,16 @@ func resourceDesc(ref model.ResourceRef) string {
 	return ref.GVR.Resource
 }
 
+// cliTarget renders ref as the `<resource>[.<group>]/<name> [-n <namespace>]`
+// arguments ParseTarget accepts, so printed commands are copy-paste runnable.
+func cliTarget(ref model.ResourceRef) string {
+	t := resourceDesc(ref) + "/" + ref.Name
+	if ref.Namespace != "" {
+		t += " -n " + ref.Namespace
+	}
+	return t
+}
+
 // appendAudit appends one tab-separated line per audit record to path.
 func appendAudit(path string, ref model.ResourceRef, records []string) error {
 	if len(records) == 0 {
@@ -129,15 +139,28 @@ func Run(ctx context.Context, c cluster.Client, o Options) (string, int, error) 
 
 	// RBAC pre-flight for a single target: fail fast with a clear message rather
 	// than a confusing mid-run 403. (--all reads degrade gracefully per source.)
+	// Then hold the explicit target to the same "stuck" bar --all scans for: a
+	// missing target is an error, a live one is never diagnosed or cleared.
 	if !o.All {
 		if err := preflight(ctx, c, refs[0], o.Apply); err != nil {
 			return "", 1, err
+		}
+		obj, err := c.Get(ctx, refs[0].GVR, refs[0].Namespace, refs[0].Name)
+		if err != nil {
+			return "", 1, fmt.Errorf("read target %s: %w", cliTarget(refs[0]), err)
+		}
+		if !discover.IsStuck(obj) {
+			return fmt.Sprintf("not stuck: %s is not terminating on finalizers\n", cliTarget(refs[0])), 0, nil
 		}
 	}
 
 	snap, results, err := diagnose(ctx, c, refs, now, strategyFor(o))
 	if err != nil {
 		return "", 1, err
+	}
+	if len(results) == 0 {
+		// Every target finished deleting (or became unreadable) since it was found.
+		return "no stuck resources found\n", 0, nil
 	}
 
 	if !o.Apply {
@@ -245,7 +268,7 @@ func renderDryRun(o Options, snap model.Snapshot, results []targetResult) string
 			continue
 		}
 		d := apply.Digest(r.obj.Ref, r.verdicts, r.obj.ResourceVersion)
-		out += fmt.Sprintf("to apply: kubectl finalizer-doctor %s --apply --confirm=%s\n", r.obj.Ref.String(), d)
+		out += fmt.Sprintf("to apply: kubectl finalizer-doctor %s --apply --confirm=%s\n", cliTarget(r.obj.Ref), d)
 	}
 	return out
 }

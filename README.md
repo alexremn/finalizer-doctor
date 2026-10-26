@@ -91,8 +91,8 @@ kubectl finalizer-doctor ns/my-namespace --apply --confirm=<digest>
 
 | Code | Meaning |
 |------|---------|
-| `0` | nothing stuck, or apply cleared cleanly |
-| `1` | operational error or invalid invocation (e.g. `--apply` with `--all`) |
+| `0` | nothing stuck (incl. a target that is not terminating), or apply cleared cleanly |
+| `1` | operational error or invalid invocation (e.g. target not found, `--apply` with `--all`) |
 | `2` | stuck object(s) found (report-mode signal for CI) |
 | `3` | refused (SLOW/UNKNOWN, gate not satisfied, blocker, re-verify changed) |
 

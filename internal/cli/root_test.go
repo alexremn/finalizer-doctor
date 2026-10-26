@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,19 @@ func TestVersionSubcommand(t *testing.T) {
 	root.SetArgs([]string{"version"})
 	require.NoError(t, root.Execute())
 	assert.Contains(t, buf.String(), "finalizer-doctor")
+}
+
+// /dev/null is a character device, so a mode-bit check misreads it as a TTY and
+// sends `--apply --confirm` (cron/CI, stdin </dev/null) down the typed-name path.
+func TestIsTTYFalseForDevNull(t *testing.T) {
+	devNull, err := os.Open(os.DevNull)
+	require.NoError(t, err)
+	defer func() { _ = devNull.Close() }()
+	orig := os.Stdin
+	os.Stdin = devNull
+	defer func() { os.Stdin = orig }()
+
+	assert.False(t, isTTY())
 }
 
 func TestResolveGVRViaDiscovery(t *testing.T) {

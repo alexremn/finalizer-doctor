@@ -72,5 +72,6 @@ func TestRunDryRunPrintsApplyHintWithDigest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, code)
 	digest := apply.Digest(widgetRef(), []model.Verdict{{Finalizer: "example.com/cleanup", State: model.StateDead}}, "9")
-	assert.Contains(t, out, "--confirm="+digest)
+	// The hint must be a command the CLI itself accepts (copy-paste runnable).
+	assert.Contains(t, out, "to apply: kubectl finalizer-doctor widgets.example.com/w1 -n team-a --apply --confirm="+digest+"\n")
 }

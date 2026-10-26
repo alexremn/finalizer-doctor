@@ -2,15 +2,18 @@ package cli
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/alexremn/finalizer-doctor/internal/cluster/clustertest"
+	"github.com/alexremn/finalizer-doctor/internal/discover"
 	"github.com/alexremn/finalizer-doctor/internal/model"
 )
 
@@ -66,4 +69,66 @@ func TestRunApplyNonInteractiveBadDigestRefused(t *testing.T) {
 	assert.Equal(t, 3, code, "bad digest -> refused")
 	assert.Contains(t, out, "refused")
 	_ = model.StateDead
+}
+
+func notFound(_ context.Context, gvr schema.GroupVersionResource, _, name string) (*unstructured.Unstructured, error) {
+	return nil, apierrors.NewNotFound(gvr.GroupResource(), name)
+}
+
+func TestRunMissingTargetIsError(t *testing.T) {
+	for _, apply := range []bool{false, true} {
+		f := &clustertest.Fake{GetFn: notFound}
+		out, code, err := Run(context.Background(), f, Options{Target: "widgets.example.com/nope", Namespace: "team-a", Apply: apply, Confirm: "x"})
+		assert.Equal(t, 1, code, "apply=%v: a missing target is an operational error, not stuck/cleared", apply)
+		assert.ErrorContains(t, err, "not found")
+		assert.Empty(t, out)
+		assert.Empty(t, f.Mutations)
+	}
+}
+
+func TestRunNonTerminatingTargetIsNotStuck(t *testing.T) {
+	live := stuckCR()
+	live.SetDeletionTimestamp(nil) // finalizer present, but nobody is deleting it
+	for _, apply := range []bool{false, true} {
+		f := &clustertest.Fake{APIServiceObjs: []unstructured.Unstructured{deadAPIService()}}
+		f.GetFn = func(context.Context, schema.GroupVersionResource, string, string) (*unstructured.Unstructured, error) {
+			c := live
+			return &c, nil
+		}
+		out, code, err := Run(context.Background(), f, Options{Target: "widgets.example.com/w1", Namespace: "team-a", Apply: apply, Confirm: "x"})
+		require.NoError(t, err)
+		assert.Equal(t, 0, code, "apply=%v", apply)
+		assert.Equal(t, "not stuck: widgets.example.com/w1 -n team-a is not terminating on finalizers\n", out)
+		assert.Empty(t, f.Mutations, "never strip a finalizer from a live object")
+	}
+}
+
+func TestRunAllTargetVanishedReportsNothingStuck(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "example.com", Version: "v1", Resource: "widgets"}
+	f := &clustertest.Fake{
+		Preferred: []*metav1.APIResourceList{{
+			GroupVersion: "example.com/v1",
+			APIResources: []metav1.APIResource{{Name: "widgets", Namespaced: true, Verbs: metav1.Verbs{"list"}}},
+		}},
+		Lists: map[string]*unstructured.UnstructuredList{clustertest.ListKey(gvr, ""): {Items: []unstructured.Unstructured{stuckCR()}}},
+		GetFn: notFound, // finished deleting between the scan and the snapshot
+	}
+	out, code, err := Run(context.Background(), f, Options{All: true})
+	require.NoError(t, err)
+	assert.Equal(t, 0, code)
+	assert.Equal(t, "no stuck resources found\n", out)
+}
+
+func TestCLITargetRoundTripsThroughParseTarget(t *testing.T) {
+	for want, ref := range map[string]model.ResourceRef{
+		"namespaces/demo":                  {GVR: schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}, Name: "demo"},
+		"configmaps/c -n default":          {GVR: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}, Namespace: "default", Name: "c"},
+		"widgets.example.com/w1 -n team-a": widgetRef(),
+	} {
+		assert.Equal(t, want, cliTarget(ref))
+		target, ns, _ := strings.Cut(want, " -n ")
+		parsed, err := discover.ParseTarget(target, ns)
+		require.NoError(t, err)
+		assert.Equal(t, discover.Target{Group: ref.GVR.Group, Resource: ref.GVR.Resource, Namespace: ref.Namespace, Name: ref.Name}, parsed)
+	}
 }

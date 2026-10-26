@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -110,10 +111,7 @@ func buildClient(kubeconfig, kcontext string, timeout time.Duration) (cluster.Cl
 	return cluster.NewFromConfig(cfg)
 }
 
+// isTTY asks the terminal driver: a ModeCharDevice check also matches /dev/null.
 func isTTY() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
