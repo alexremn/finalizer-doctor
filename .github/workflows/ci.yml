@@ -42,3 +42,12 @@ jobs:
       # plugin and drives it with the runner's preinstalled kubectl.
       - run: go run sigs.k8s.io/kind@latest create cluster --wait 180s
       - run: go test -tags e2e -count=1 -v ./test/e2e/...
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: "1.26" }
+      # Dependabot never bumps indirect deps (e.g. golang.org/x/net) and many Go
+      # vulndb entries carry no GitHub advisory, so scan the reachable code here.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

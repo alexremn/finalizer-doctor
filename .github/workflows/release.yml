@@ -13,12 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      # No module/build cache: the gate jobs run `go run …@latest` tools and could
+      # write a poisoned cache that this secret-bearing job would then restore.
       - uses: actions/setup-go@v7
-        with: { go-version: "1.26" }
+        with: { go-version: "1.26", cache: false }
       # Third-party actions in this secret-bearing job are pinned to immutable
       # commit SHAs (supply-chain hardening). Update the SHA + comment together.
       - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with: { version: "~> v2", args: release --clean }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
