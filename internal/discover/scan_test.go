@@ -43,3 +43,45 @@ func TestScanFindsOnlyStuck(t *testing.T) {
 	assert.Equal(t, "w1", refs[0].Name)
 	assert.Equal(t, "widgets", refs[0].GVR.Resource)
 }
+
+// stuckNamespace mirrors a real stuck namespace: the `kubernetes` finalizer lives
+// in spec.finalizers and metadata.finalizers is empty.
+func stuckNamespace(name string) unstructured.Unstructured {
+	o := unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{"finalizers": []any{"kubernetes"}}}}
+	o.SetName(name)
+	ts := metav1.Now()
+	o.SetDeletionTimestamp(&ts)
+	return o
+}
+
+func TestScanFindsNamespaceStuckOnSpecFinalizer(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "namespaces"}
+	f := &clustertest.Fake{
+		Preferred: []*metav1.APIResourceList{{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{{Name: "namespaces", Verbs: metav1.Verbs{"list"}}},
+		}},
+		Lists: map[string]*unstructured.UnstructuredList{
+			clustertest.ListKey(gvr, ""): {Items: []unstructured.Unstructured{stuckNamespace("demo-stuck")}},
+		},
+	}
+
+	refs, err := Scan(context.Background(), f)
+	require.NoError(t, err)
+	require.Len(t, refs, 1)
+	assert.Equal(t, "demo-stuck", refs[0].Name)
+}
+
+func TestIsStuck(t *testing.T) {
+	live := unstructured.Unstructured{}
+	live.SetFinalizers([]string{"example.com/cleanup"})
+	deletingNoFinalizers := unstructured.Unstructured{}
+	ts := metav1.Now()
+	deletingNoFinalizers.SetDeletionTimestamp(&ts)
+	ns, cr := stuckNamespace("ns"), stuckObj("w1")
+
+	assert.True(t, IsStuck(&cr), "deleting + metadata finalizer")
+	assert.True(t, IsStuck(&ns), "deleting + spec finalizer")
+	assert.False(t, IsStuck(&live), "finalizer but not deleting")
+	assert.False(t, IsStuck(&deletingNoFinalizers), "deleting with nothing holding it")
+}

@@ -50,8 +50,8 @@ func ParseTarget(in, defaultNS string) (Target, error) {
 	return t, nil
 }
 
-// Scan lists every preferred, listable resource and returns refs for objects
-// that have a deletionTimestamp and a non-empty finalizer set.
+// Scan lists every preferred, listable resource and returns refs for stuck
+// objects (see IsStuck).
 func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, error) {
 	lists, err := c.ServerPreferredResources(ctx)
 	if err != nil {
@@ -74,13 +74,20 @@ func Scan(ctx context.Context, c cluster.Client) ([]model.ResourceRef, error) {
 			}
 			for i := range objs.Items {
 				o := objs.Items[i]
-				if o.GetDeletionTimestamp() != nil && len(o.GetFinalizers()) > 0 {
+				if IsStuck(&o) {
 					refs = append(refs, model.ResourceRef{GVR: gvr, Namespace: o.GetNamespace(), Name: o.GetName()})
 				}
 			}
 		}
 	}
 	return refs, nil
+}
+
+// IsStuck reports whether o is being deleted and is held by a finalizer, in
+// metadata.finalizers or spec.finalizers (where namespaces keep `kubernetes`).
+func IsStuck(o *unstructured.Unstructured) bool {
+	spec, _, _ := unstructured.NestedStringSlice(o.Object, "spec", "finalizers")
+	return o.GetDeletionTimestamp() != nil && len(o.GetFinalizers())+len(spec) > 0
 }
 
 func canList(verbs []string) bool {

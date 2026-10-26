@@ -55,7 +55,14 @@ func NewFromConfig(cfg *rest.Config) (Client, error) {
 }
 
 func (c *clientGo) ServerPreferredResources(ctx context.Context) ([]*metav1.APIResourceList, error) {
-	return c.disc.ServerPreferredResourcesWithContext(ctx)
+	lists, err := c.disc.ServerPreferredResourcesWithContext(ctx)
+	// A dead aggregated APIService (the usual reason a namespace is stuck) fails
+	// discovery for its own group only; keep the groups that did resolve. Its
+	// objects can't be listed anyway, and the namespace verdict gates on it.
+	if discovery.IsGroupDiscoveryFailedError(err) {
+		return lists, nil
+	}
+	return lists, err
 }
 
 func (c *clientGo) List(ctx context.Context, gvr schema.GroupVersionResource, ns string) (*unstructured.UnstructuredList, error) {
