@@ -4,4 +4,5 @@
 #   export KUBEBUILDER_ASSETS="$(hack/setup-envtest.sh)"
 #   go test -tags integration ./internal/cluster/...
 set -euo pipefail
-go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path
+cd "$(dirname "$0")/.."
+go tool -modfile=tools/go.mod setup-envtest use -p path

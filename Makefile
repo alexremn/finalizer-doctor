@@ -22,3 +22,4 @@ e2e:
 
 tidy:
 	go mod tidy
+	cd tools && go mod tidy

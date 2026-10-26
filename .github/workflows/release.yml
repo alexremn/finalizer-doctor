@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      # No module/build cache: the gate jobs run `go run …@latest` tools and could
+      # No module/build cache: the gate jobs build and run third-party tools and could
       # write a poisoned cache that this secret-bearing job would then restore.
       - uses: actions/setup-go@v7
         with: { go-version: "1.27", check-latest: true, cache: false }

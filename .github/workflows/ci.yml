@@ -7,6 +7,8 @@ permissions:
   contents: read
 # setup-go check-latest: without it "1.27" resolves to the runner image's cached
 # patch release, which can lag stdlib security fixes (v0.1.6 shipped go1.26.9).
+# CLI tools (kind, govulncheck, setup-envtest) are pinned in tools/go.mod: own
+# module so their deps never touch the plugin's, and Dependabot still bumps them.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,7 +25,8 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: "1.27", check-latest: true }
       - uses: golangci/golangci-lint-action@v9
-        with: { version: latest }
+        # Pinned for reproducible runs (Dependabot can't track action inputs).
+        with: { version: v2.15.0 }
   integration:
     runs-on: ubuntu-latest
     steps:
@@ -31,7 +34,7 @@ jobs:
       - uses: actions/setup-go@v7
         with: { go-version: "1.27", check-latest: true }
       - run: |
-          KUBEBUILDER_ASSETS="$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@latest use -p path)" \
+          KUBEBUILDER_ASSETS="$(go tool -modfile=tools/go.mod setup-envtest use -p path)" \
             go test -tags integration ./internal/cluster/...
   e2e:
     runs-on: ubuntu-latest
@@ -40,9 +43,9 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: "1.27", check-latest: true }
-      # Real cluster on kind's default (latest) Kubernetes; the test builds the
+      # Real cluster on the pinned kind's default Kubernetes; the test builds the
       # plugin and drives it with the runner's preinstalled kubectl.
-      - run: go run sigs.k8s.io/kind@latest create cluster --wait 180s
+      - run: go tool -modfile=tools/go.mod kind create cluster --wait 180s
       - run: go test -tags e2e -count=1 -v ./test/e2e/...
   vuln:
     runs-on: ubuntu-latest
@@ -52,4 +55,4 @@ jobs:
         with: { go-version: "1.27", check-latest: true }
       # Dependabot never bumps indirect deps (e.g. golang.org/x/net) and many Go
       # vulndb entries carry no GitHub advisory, so scan the reachable code here.
-      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go tool -modfile=tools/go.mod govulncheck ./...

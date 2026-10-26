@@ -8,6 +8,10 @@ updates:
       # because client-go pins the matching api/apimachinery minor.
       kubernetes:
         patterns: ["k8s.io/*"]
+  # CI tools (kind, govulncheck, setup-envtest), pinned in their own module.
+  - package-ecosystem: gomod
+    directory: "/tools"
+    schedule: { interval: weekly }
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: weekly }
